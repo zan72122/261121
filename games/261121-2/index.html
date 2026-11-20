@@ -397,14 +397,20 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
     '  float md = smoothstep(0.99994, 0.99995, mm);',
     '  vec3 mx = normalize(cross(uMoon, vec3(0.0,1.0,0.0))); vec3 my = cross(mx, uMoon);',
     '  vec2 mp = vec2(dot(d,mx), dot(d,my))*90.0;',
-    '  float maria = vno(mp*0.9+3.0)*0.6 + vno(mp*2.1)*0.4;',
-    '  vec3 moonC = vec3(1.05,1.03,0.96)*(0.75+0.35*maria);',
     '  col += vec3(0.25,0.3,0.42)*pow(max(mm,0.0), 400.0)*0.25*uNight;',
     '  float c = cloudAt(d, uTime, uCover);',
-    '  float c2 = fbm(d.xz/(max(h,0.0)+0.14)*2.3 + uTime*0.01);',
-    '  vec3 cc = uCloud*(0.72+0.38*c2) + uGlow*pow(mu,4.0)*0.8;',
-    '  col = mix(col, moonC*2.2, md*smoothstep(0.3,0.8,uNight)*(1.0-c*0.85));',
-    '  col = mix(col, cc, c*0.78);',
+    // 月の模様と雲の細部は、それが見える画素だけで計算する（結果は同じ。空の大半で重いノイズを省く）
+    '  float mA = md*smoothstep(0.3,0.8,uNight)*(1.0-c*0.85);',
+    '  if (mA > 0.0) {',
+    '    float maria = vno(mp*0.9+3.0)*0.6 + vno(mp*2.1)*0.4;',
+    '    vec3 moonC = vec3(1.05,1.03,0.96)*(0.75+0.35*maria);',
+    '    col = mix(col, moonC*2.2, mA);',
+    '  }',
+    '  if (c > 0.0) {',
+    '    float c2 = fbm(d.xz/(max(h,0.0)+0.14)*2.3 + uTime*0.01);',
+    '    vec3 cc = uCloud*(0.72+0.38*c2) + uGlow*pow(mu,4.0)*0.8;',
+    '    col = mix(col, cc, c*0.78);',
+    '  }',
     '  col += sunDisc*disc*(1.0-c*0.7);',
     '  gl_FragColor = vec4(col, 1.0);',
     '  #include <tonemapping_fragment>',
@@ -1150,6 +1156,7 @@ function(t,e){"object"==typeof exports&&"undefined"!=typeof module?e(exports):"f
       } else if (ringAmp > 0) { ringAmp = 0; bucketG.rotation.set(0, 0, 0); bucketG.position.y = 0; }
       // 星
       if (flare > 0) { flare = Math.max(0, flare - dt * 0.8); starU.uFlare.value = flare * flare * (3 - 2 * flare); }
+      stars.visible = starU.uNight.value > 0 || starU.uFlare.value > 0;   // 昼は明るさ 0 の加算なので描かない
       // 床のしみ
       updateWet(dt);
     };
