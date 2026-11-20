@@ -188,9 +188,9 @@
     // 色
     ctx.save(); outline(ctx);
     var gr = ctx.createLinearGradient(cx - maxHW, 0, cx + maxHW, 0);
-    gr.addColorStop(0, '#3f6a26'); gr.addColorStop(0.5, '#527f30'); gr.addColorStop(1, '#3f6a26');
+    gr.addColorStop(0, '#36611f'); gr.addColorStop(0.5, '#447329'); gr.addColorStop(1, '#36611f');
     ctx.fillStyle = gr; ctx.fill(); ctx.clip();
-    ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.55;
+    ctx.globalCompositeOperation = 'overlay'; ctx.globalAlpha = 0.22;
     ctx.drawImage(noiseC, ox, 0, W, Hh);
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     // 葉脈（色）と溝（高さ）
@@ -208,19 +208,19 @@
         var t1 = Math.min(0.97, t0 + 0.13 + 0.04 * rnd());
         var x0 = midX(t0), y0 = Y(t0), x1 = midX(t1) + side * hw(t1, side) * 0.82, y1 = Y(t1);
         var qx = midX(t0) + side * hw(t0, side) * 0.55, qy = Y(t0 + 0.035);
-        vein(x0, y0, qx, qy, x1, y1, W * 0.011, 'rgba(150,186,100,0.55)', 'rgb(105,105,105)');
+        vein(x0, y0, qx, qy, x1, y1, W * 0.011, 'rgba(120,160,80,0.45)', 'rgb(105,105,105)');
         // 細かい網目
         for (var m = 0; m < 5; m++) {
           var tt = t0 + (t1 - t0) * (m + 0.5) / 5, xa = U.lerp(x0, x1, (m + 0.5) / 5), ya = Y(tt) - (1 - (m + 0.5) / 5) * 4;
           var xb = xa + side * (6 + rnd() * 10), yb = ya + 10 + rnd() * 14;
-          vein(xa, ya, (xa + xb) / 2 - side * 3, (ya + yb) / 2, xb, yb, W * 0.004, 'rgba(130,170,90,0.28)', 'rgb(125,125,125)');
+          vein(xa, ya, (xa + xb) / 2 - side * 3, (ya + yb) / 2, xb, yb, W * 0.004, 'rgba(110,150,70,0.22)', 'rgb(125,125,125)');
         }
       }
     }
     // 主脈
     for (i = 0; i < 40; i++) {
       var ta = i / 40, tb2 = (i + 1) / 40, wv = U.lerp(W * 0.034, W * 0.006, ta);
-      vein(midX(ta), Y(ta), midX((ta + tb2) / 2), Y((ta + tb2) / 2), midX(tb2), Y(tb2), wv, '#93b864', 'rgb(90,90,90)');
+      vein(midX(ta), Y(ta), midX((ta + tb2) / 2), Y((ta + tb2) / 2), midX(tb2), Y(tb2), wv, '#82a855', 'rgb(90,90,90)');
     }
     // ふちを少し濃く
     outline(ctx); ctx.strokeStyle = 'rgba(28,50,18,0.4)'; ctx.lineWidth = W * 0.03; ctx.stroke();
@@ -251,7 +251,7 @@
   }
 
   /* 実の色（緑 → 黄緑 → 橙 → 赤） */
-  var STOPS = [[-0.25, 0x3a6a1d], [0, 0x5c962e], [0.2, 0x9ab53b], [0.4, 0xd9a72e], [0.58, 0xea7a26], [0.78, 0xdc3d1b], [1.0, 0xc91f12], [1.3, 0xb81a10]];
+  var STOPS = [[-0.25, 0x3a6a1d], [0, 0x5a942c], [0.2, 0xa3b63c], [0.35, 0xdca22e], [0.5, 0xe9802a], [0.66, 0xe2521e], [0.82, 0xcf2c16], [1.0, 0xb8160c], [1.3, 0xa8120a]];
   STOPS = STOPS.map(function (s) { return { p: s[0], c: new THREE.Color(s[1]) }; });
   function ripeColor(r, out) {
     if (r <= STOPS[0].p) return out.copy(STOPS[0].c);
@@ -332,7 +332,7 @@
     var dg = new THREE.SphereGeometry(1, 10, 5, 0, Math.PI * 2, 0, Math.PI / 2);
     dg.scale(1, 0.55, 1);
     RS.dropGeo = dg;
-    RS.dropMat = new THREE.MeshPhysicalMaterial({ color: 0xeaf3f8, roughness: 0.03, metalness: 0, transparent: true, opacity: 0.5,
+    RS.dropMat = new THREE.MeshPhysicalMaterial({ color: 0x9fb3bd, roughness: 0.02, metalness: 0, transparent: true, opacity: 0.22,
       clearcoat: 1, clearcoatRoughness: 0.02, depthWrite: false });
     // 実の形
     var fg = new THREE.SphereGeometry(R, 40, 28), p = fg.attributes.position;
@@ -393,7 +393,7 @@
   // 葉: 付け根の高さ（育ちきったときの茎の長さ方向の位置）, 向き（度。0=右 +X, 90=手前 +Z, -90=奥）, 長さ
   var LEAF_H = [0.03, 0.065, 0.10, 0.135, 0.17, 0.23, 0.30, 0.37, 0.50, 0.60, 0.82, 0.93];
   var LEAF_AZ = [-158, -28, 172, -72, -128, -20, -170, -44, -150, -96, -24, -140];
-  var LEAF_LEN = [0.17, 0.20, 0.23, 0.26, 0.28, 0.30, 0.31, 0.31, 0.30, 0.28, 0.25, 0.21];
+  var LEAF_LEN = [0.20, 0.24, 0.28, 0.32, 0.34, 0.36, 0.37, 0.37, 0.36, 0.34, 0.31, 0.27];
   // 果房: 枝の折れ線（房の座標: x=外向き, y=上, z=横）と、実の中心（育ちきった大きさのとき）
   var TRUSS = [
     { H: 0.42, az: 80, rach: [[0, 0, 0], [0.028, 0.012, 0], [0.050, 0.0, -0.006], [0.068, -0.02, 0.004], [0.086, -0.055, -0.004], [0.097, -0.07, 0.006]],
@@ -438,7 +438,7 @@
       function addLf(u, side, size, ang, hang, variant) {
         var s = leafD.grid(lnu, lnv);
         lf.lfs.push({ slot: s, u: u, side: side, size: size, ang: ang, hang: hang, variant: variant,
-          B: new V(), D: new V(), N: new V(), Wd: new V(), len: 0, wid: 0, fold: 0, droop: 0, curl: 0, vis: false, ph: rnd() * 6.28 });
+          B: new V(), D: new V(), N: new V(), Wd: new V(), len: 0, wid: 0, fold: 0, droop: 0, curl: 0, vis: false, ph: rnd() * 6.28, rr: (rnd() - 0.5) * 0.7 });
       }
       addLf(1, 0, 1, 0, 0.2, 0);
       var us, sz, an;
@@ -458,7 +458,7 @@
     var units = [], trusses = [];
     TRUSS.forEach(function (td, ti) {
       var tr = { H: td.H, az: td.az * D2R, rach: td.rach, slot: tubes.tube(td.rach.length, radT, 1), RP: [], Rr: [], units: [],
-        rv: new V(), rvv: new V(), rvT: new V(), held: -1, target: new V(), stretch: 0, ph: ti * 2.1 };
+        rv: new V(), rvv: new V(), rvT: new V(), sv: new V(), svv: new V(), svT: new V(), held: -1, target: new V(), ph: ti * 2.1 };
       td.rach.forEach(function () { tr.RP.push(new V()); tr.Rr.push(0); });
       td.fr.forEach(function (fd) {
         var idx = units.length;
@@ -537,11 +537,11 @@
       var Ls = A, ds = Ls / nS, W = TH.w, Wd = Math.max(W, -0.15), Lw = 0.06 + 0.10 * g;
       var sx = stemOsc.x + 0.010 * Math.sin(time * 1.1) + 0.006 * Math.sin(time * 2.3 + 1.0);
       var sz = stemOsc.z + 0.008 * Math.sin(time * 0.9 + 2.0) + 0.005 * Math.sin(time * 2.9);
-      var dir = _d.set(0.02, 1, -0.01).normalize();
+      var dir = _d.set(-0.03, 1, -0.01).normalize();
       stemP[0].set(0, 0, 0); stemD[0].copy(dir);
       for (var i = 0; i < nS; i++) {
         var s = (i + 0.5) * ds;
-        var kx = 0.32 * Math.sin(s * 6.1 + 0.7) + 0.18 * Math.sin(s * 13 + 2), kz = 0.28 * Math.sin(s * 5.3 + 2.1) + 0.16 * Math.sin(s * 11.7);
+        var kx = 0.22 * Math.sin(s * 6.1 + 2.4) + 0.12 * Math.sin(s * 13 + 2), kz = 0.2 * Math.sin(s * 5.3 + 2.1) + 0.12 * Math.sin(s * 11.7);
         for (var q = 0; q < kinks.length; q++) { var kn = kinks[q]; if (kn.h < Ls - 0.02 && Math.abs(s - kn.h) < ds * 0.5) { kx += kn.x / ds; kz += kn.z / ds; } }
         var dd = Wd * 0.14 / Ls;
         if (s > Ls - Lw) dd += Wd * 2.0 / Lw * (0.5 + (s - (Ls - Lw)) / Lw);
@@ -608,17 +608,17 @@
         var D = sp.D;
         if (sp.side === 0) D.copy(_T);
         else D.copy(_T).multiplyScalar(Math.cos(sp.ang)).addScaledVector(b, sp.side * Math.sin(sp.ang)).normalize();
-        var beta = sp.hang + W * 1.05 - young * 0.25;
+        var beta = sp.hang + 0.22 + W * 1.0 - young * 0.35;
         _ax.crossVectors(D, UP); var al = _ax.length();
         if (al > 1e-3) { _ax.multiplyScalar(1 / al); rotAxis(D, _ax, -beta); }
         var N = sp.N.copy(UP).addScaledVector(D, -D.y);
         if (N.lengthSq() < 0.01) N.copy(o);
         N.normalize();
-        var roll = sp.side * (0.15 + 0.5 * W) + (0.05 + fl * 0.6) * Math.sin(time * (3.1 + fl * 20) + sp.ph);
+        var roll = sp.rr + sp.side * (0.15 + 0.5 * W) + (0.05 + fl * 0.6) * Math.sin(time * (3.1 + fl * 20) + sp.ph);
         if (sp.side === 0) roll = (0.04 + fl * 0.5) * Math.sin(time * (2.7 + fl * 20) + sp.ph);
         rotAxis(N, D, roll);
         sp.Wd.crossVectors(N, D);
-        sp.len = Lk * 0.36 * sp.size; sp.wid = sp.len * 0.5;
+        sp.len = Lk * 0.40 * sp.size; sp.wid = sp.len * 0.6;
         sp.fold = 0.2 + 0.35 * W + young * 0.55;
         sp.droop = U.lerp(0.3, 1.1, W) * (1 - young * 0.5);
         sp.curl = 0.12 + 0.25 * W;
@@ -656,7 +656,7 @@
       _o.set(Math.cos(tr.az), 0, Math.sin(tr.az)).applyQuaternion(_q); _up.copy(_Dd); _bb.crossVectors(_o, _up).normalize();
       _Q.addScaledVector(_o, rs0 * 0.6);
       // 引っぱり
-      tr.rvT.set(0, 0, 0); tr.stretch = 0;
+      tr.rvT.set(0, 0, 0); tr.svT.set(0, 0, 0);
       if (tr.held >= 0) {
         var hu = units[tr.held];
         trussPt(tr, hu.c[0], hu.c[1], hu.c[2], ts, null, _tmp);      // ふだんの実の位置
@@ -667,12 +667,14 @@
           _ax.crossVectors(a, bvec); var sn = _ax.length(), cs = a.dot(bvec);
           var ang = Math.min(0.95, Math.atan2(sn, cs));
           if (sn > 1e-8) tr.rvT.copy(_ax).multiplyScalar(ang / sn);
-          tr.stretch = U.clamp(lb - la, -0.008, 0.016);
+          tr.svT.copy(a).multiplyScalar(U.clamp(lb - la, -0.01, 0.04) / la);
         }
       }
       var kk = tr.held >= 0 ? 260 : 75, zz = tr.held >= 0 ? 0.75 : 0.11, cc = 2 * zz * Math.sqrt(kk);
       tr.rvv.x += (kk * (tr.rvT.x - tr.rv.x) - cc * tr.rvv.x) * dt; tr.rvv.y += (kk * (tr.rvT.y - tr.rv.y) - cc * tr.rvv.y) * dt; tr.rvv.z += (kk * (tr.rvT.z - tr.rv.z) - cc * tr.rvv.z) * dt;
       tr.rv.addScaledVector(tr.rvv, dt);
+      tr.svv.x += (kk * (tr.svT.x - tr.sv.x) - cc * tr.svv.x) * dt; tr.svv.y += (kk * (tr.svT.y - tr.sv.y) - cc * tr.svv.y) * dt; tr.svv.z += (kk * (tr.svT.z - tr.sv.z) - cc * tr.svv.z) * dt;
+      tr.sv.addScaledVector(tr.svv, dt);
       _ax.copy(tr.rv).addScaledVector(_bb, 0.035 * Math.sin(time * 1.4 + tr.ph)).addScaledVector(_o, 0.02 * Math.sin(time * 2.1 + tr.ph));
       var ang2 = _ax.length();
       if (ang2 > 1e-7) { _ax.multiplyScalar(1 / ang2); _qF.setFromAxisAngle(_ax, ang2); _qH.setFromAxisAngle(_ax, ang2 * 0.45); }
@@ -680,6 +682,7 @@
       for (i = 0; i < tr.rach.length; i++) {
         var rp = tr.rach[i];
         trussPt(tr, rp[0], rp[1], rp[2], ts, i === 0 ? null : (i === 1 ? _qH : _qF), tr.RP[i]);
+        if (i > 0) tr.RP[i].addScaledVector(tr.sv, i === 1 ? 0.35 : 1);
         tr.Rr[i] = U.lerp(0.0021, 0.0013, i / (tr.rach.length - 1)) * Math.max(0.35, ts);
       }
       tr.RP[0].copy(_Q).addScaledVector(_o, -rs0 * 0.5);
@@ -688,7 +691,7 @@
       for (var q = 0; q < tr.units.length; q++) {
         var u = tr.units[q], J = tr.RP[u.j];
         var top = trussPt(tr, u.c[0], u.c[1] + R * TOPY, u.c[2], ts, _qF, u.top);
-        if (tr.held === u.index && tr.stretch !== 0) { _tmp.subVectors(top, _Q).normalize(); top.addScaledVector(_tmp, tr.stretch); }
+        top.add(tr.sv);
         _tmp.subVectors(top, J); var pl = _tmp.length(); _tmp.multiplyScalar(1 / Math.max(pl, 1e-6));
         var Av = u.A.copy(_tmp).multiplyScalar(0.45).addScaledVector(DOWN, 0.55).normalize();
         // 果柄（関節のふくらみ付き）
@@ -714,7 +717,7 @@
         var op = U.smooth(u.fd, u.fd + 0.4, flowersV);
         var frRaw = fruitV > 0 ? U.smooth(u.gd, u.gd + 0.75, fruitV) : -1;
         // がく
-        var a0 = U.lerp(0.22, 1.15, op), a1 = U.lerp(-0.05, 1.7, op), sl = U.lerp(0.0085, 0.0105, op);
+        var a0 = U.lerp(0.22, 1.15, op), a1 = U.lerp(-0.05, 1.7, op), sl = U.lerp(0.0095, 0.013, op);
         if (frRaw >= 0) { var ff = U.smooth(0, 0.3, frRaw + 0.05); a0 = U.lerp(a0, 1.42, ff); a1 = U.lerp(a1, 2.05, ff); sl = U.lerp(sl, 0.012 + 0.0025 * frRaw, ff); }
         writeCalyx(tubes, u.sep, bsc > 0.001 ? u.nSep : 0, top, Av, _e1, _e2, a0, a1, sl * bsc, 0.0027 * bsc, u.rot);
         // 花びら
@@ -723,7 +726,7 @@
           var fall = frRaw >= 0 ? u.fallT : -1;
           var opn = fall >= 0 ? 1 : op;
           var p0 = U.lerp(0.1, 1.3, opn), p1 = U.lerp(-0.22, 2.6, opn) + (fall > 0 ? fall * 0.8 : 0);
-          var plen = U.lerp(0.0078, 0.0125, opn) * bsc, pwid = U.lerp(0.0021, 0.0034, opn) * bsc, nu = pnu;
+          var plen = U.lerp(0.009, 0.017, opn) * bsc, pwid = U.lerp(0.0026, 0.0046, opn) * bsc, nu = pnu;
           col.copy(colBud).lerp(colOpen, U.smooth(0.0, 0.5, op)); if (fall >= 0) col.lerp(colDry, U.smooth(0, 1, fall));
           for (s = 0; s < 6; s++) {
             if (s >= u.nPet) { flD.hide(u.pet[s]); continue; }
@@ -747,8 +750,8 @@
         // しべ（円すい）
         var cs2 = bsc * U.smooth(0.15, 0.6, op);
         if (frRaw < 0 && cs2 > 0.01) {
-          for (i = 0; i < 4; i++) CONE[i].copy(top).addScaledVector(Av, (0.001 + 0.0085 * i / 3) * cs2);
-          CONER[0] = 0.0021 * cs2; CONER[1] = 0.0019 * cs2; CONER[2] = 0.0013 * cs2; CONER[3] = 0.0004 * cs2;
+          for (i = 0; i < 4; i++) CONE[i].copy(top).addScaledVector(Av, (0.001 + 0.011 * i / 3) * cs2);
+          CONER[0] = 0.0027 * cs2; CONER[1] = 0.0024 * cs2; CONER[2] = 0.0016 * cs2; CONER[3] = 0.0004 * cs2;
           flD.writeTube(u.cone, CONE, CONER); flD.color(u.cone, colCone);
         } else flD.hide(u.cone);
         // 実
@@ -840,7 +843,7 @@
         if (r !== u.ripe) { u.ripe = r; setFruitColor(u.mat, r); }
       });
     }
-    plant.setGrowth = function (v) { v = U.clamp01(v); if (v === g) return; g = v; A = 0.20 + 0.85 * g; gScale = 0.5 + 0.5 * U.smooth(0, 0.55, g); };
+    plant.setGrowth = function (v) { v = U.clamp01(v); if (v === g) return; g = v; A = 0.20 + 0.85 * g; gScale = 0.72 + 0.28 * U.smooth(0, 0.55, g); };
     plant.setThirst = function (v) { thirstT = U.clamp01(v); };
     plant.setFlowers = function (v) { flowersV = U.clamp01(v); };
     plant.setFruit = function (v) {
@@ -872,7 +875,7 @@
     plant.setPicked = function (index, b) { var u = units[index]; if (u) { u.pub.picked = !!b; if (b && u.tr.held === index) u.tr.held = -1; } };
     plant.resetFruits = function () {
       units.forEach(function (u) { u.pub.picked = false; u.fallT = -1; u.bs = 0; u.bsv = 0; });
-      trusses.forEach(function (tr) { tr.held = -1; tr.rv.set(0, 0, 0); tr.rvv.set(0, 0, 0); });
+      trusses.forEach(function (tr) { tr.held = -1; tr.rv.set(0, 0, 0); tr.rvv.set(0, 0, 0); tr.sv.set(0, 0, 0); tr.svv.set(0, 0, 0); });
       flowersV = 0; fruitV = 0; ripeV = 0; lateV = 0; applyRipe();
     };
     plant.bounceFruits = function () { units.forEach(function (u, i) { u.bsv += 1.6 + 0.4 * Math.sin(i * 2.3); }); };
