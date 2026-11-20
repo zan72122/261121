@@ -7,7 +7,7 @@
   var SAVE_KEY = 'gf-261121-1';
   var SAVE_SCENES = ['home1', 'shelf', 'register', 'home2'];
   var SCALES = [1.0, 0.85, 0.7, 0.6];
-  var MAX_PX = 2560 * 1000; /* 描画する画素数の上限(およそ iPhone Pro Max の 1.5 倍) */
+  var MAX_PX = 3000 * 1000; /* 描画する画素数の上限(iPhone はかからず、大きな iPad だけ少し下げる) */
   var FADE = 0.35;
 
   G.renderer = null;
