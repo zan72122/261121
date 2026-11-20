@@ -23,11 +23,13 @@
 //                                     c 省略時は (u,v) から決まる色。返り値をそのまま保存すれば setFurikake で再現できる
 //     setFurikake(list) / clearFurikake() / drawShape('heart'|'star'|'flower')（いったん消してから中央に大きく描く）
 //     slotLocal(i, out?) / slotWorld(i, out?)  i=0..4 おかず室（0,1=奥 左右、2,3,4=手前 左中右）、5=ごはん上面中央
-//                       y はおかずの底の高さの目安（place は type ごとに上がふちを越えないよう下げる）
+//                       y はおかずの底の高さの目安（place は type ごとに、上がふちの 0.5〜6mm 下に来るよう調整）
+//                       slot 5 の y はその時点のごはんの高さ（後から setRice しても載っている物は動かない）
 //     nearestSlot(worldPoint, isFree) → i | -1（箱の上 margin 0.03 以内でなければ -1）
 //     containsXZ(worldPoint, margin = 0.03)
 //     place(food, i) / take(i) → food / items[6]
 //     applyShake(amount 0..1, seed = 1)（place 時の姿勢を基準に毎回計算し直す＝何度呼んでもよい）
+//       amount>0.55 かつ slot5 が空なら tomato が slot5 へ移る（items も移動。これは戻らない）
 //   }
 // createDessertTub() → Group  φ0.095×高0.045 の半透明の白い容器＋うすい緑のふた
 //   userData.api = { lid, lidClosedY, berries:[Group,Group], radius, height }
@@ -222,17 +224,20 @@ function lettuceMaps() {
     const S = 256;
     return paintMaps(S, S, (x, y) => {
       const u = x / S, v = y / S;
-      // 葉の付け根（左手前）から放射する葉脈
-      const dx = u + 0.15, dy = 1.15 - v, ang = Math.atan2(dy, dx), rad = Math.hypot(dx, dy);
+      // 葉の付け根（左手前）から放射する葉脈（太い主脈＋細い側脈）、間はちぢれ
+      const dx = u + 0.2, dy = 1.2 - v, ang = Math.atan2(dy, dx), rad = Math.hypot(dx, dy);
       const w = fbm(n, u * 8, v * 8, 3);
-      const f = ang * 9 + w * 2.5, fr = Math.abs(f - Math.round(f));
-      const vein = smooth(0.09, 0.0, fr) * smooth(0.1, 0.5, rad);
-      const net = 1 - Math.abs(fbm(n2, u * 32, v * 32, 2) * 2 - 1);
-      const crink = fbm(n2, u * 16, v * 16, 3);
-      let col = mixc([112, 168, 52], [78, 136, 38], crink);
-      col = mixc(col, [186, 222, 118], vein * 0.75 + smooth(0.75, 1, net) * 0.2);
-      return [col[0], col[1], col[2], 0.45 + vein * 0.25 + crink * 0.3 - smooth(0.7, 1, net) * 0.08, 0.5 - vein * 0.1];
-    }, { normal: 3 });
+      const f1 = ang * 4.2 + w * 0.5, r1 = Math.abs(f1 - Math.round(f1));
+      const f2 = ang * 11 + w * 0.9 + rad * 1.5, r2 = Math.abs(f2 - Math.round(f2));
+      const main = smooth(0.07, 0.0, r1 / Math.max(0.4, rad)), side = smooth(0.05, 0.0, r2) * 0.55 * smooth(0.2, 0.6, rad);
+      const vein = Math.max(main, side);
+      const crink = 1 - Math.abs(fbm(n2, u * 32, v * 32, 3) * 2 - 1);
+      const tone = fbm(n2, u * 8 + 5, v * 8, 2);
+      let col = mixc([92, 150, 42], [120, 176, 56], tone);
+      col = mixc(col, [70, 124, 34], smooth(0.55, 0.9, crink) * 0.35);
+      col = mixc(col, [180, 218, 118], vein * 0.5);
+      return [col[0], col[1], col[2], 0.35 + vein * 0.3 + crink * 0.35, 0.68 - vein * 0.12];
+    }, { normal: 2.2 });
   });
 }
 
@@ -309,13 +314,13 @@ const FOOD_BUILDERS = {
   tamago(g) {
     const outer = (() => {
       const n = makeNoise(21, 6), n2 = makeNoise(22, 48);
-      return setWrap(paintMaps(256, 256, (x, y) => {
-        const u = x / 256, v = y / 256;
-        const b = fbm(n, u * 6, v * 6, 4), sp = n2(u * 48, v * 48), st = fbm(n, u * 2 + 3, v * 12, 3);
+      return setWrap(paintMaps(160, 160, (x, y) => {
+        const u = x / 160, v = y / 160;
+        const b = fbm(n, u * 6, v * 6, 3), sp = n2(u * 48, v * 48), st = fbm(n, u * 2 + 3, v * 12, 3);
         const burn = smooth(0.5, 0.8, b * 0.6 + st * 0.4);
-        let c = mixc([250, 202, 58], [244, 186, 44], sp);
-        c = mixc(c, [206, 134, 42], burn * 0.8);
-        c = mixc(c, [252, 222, 110], smooth(0.35, 0.15, b) * 0.5);
+        let c = mixc([240, 178, 28], [232, 164, 22], sp);
+        c = mixc(c, [196, 118, 30], burn * 0.8);
+        c = mixc(c, [246, 200, 70], smooth(0.35, 0.15, b) * 0.5);
         return [c[0], c[1], c[2], 0.5 + (b - 0.5) * 0.5 + sp * 0.12, 0.5 - burn * 0.12];
       }, { normal: 2 }));
     })();
@@ -323,7 +328,7 @@ const FOOD_BUILDERS = {
       const S = 256;
       const [cc, cx] = makeCanvas(S), [hc, hx] = makeCanvas(S);
       const gr = cx.createRadialGradient(S / 2, S / 2, 10, S / 2, S / 2, S * 0.7);
-      gr.addColorStop(0, '#fde58a'); gr.addColorStop(1, '#f7d468');
+      gr.addColorStop(0, '#f8d662'); gr.addColorStop(1, '#f0c040');
       cx.fillStyle = gr; cx.fillRect(0, 0, S, S);
       hx.fillStyle = '#999'; hx.fillRect(0, 0, S, S);
       const r = rng(31);
@@ -336,15 +341,15 @@ const FOOD_BUILDERS = {
           const k = 1 - t * 0.9;
           const hxs = (S / 2 - 6) * k, hys = (S / 2 - 6) * k;
           const c = Math.cos(ph), s = Math.sin(ph);
-          const p = 0.62;
+          const p = 0.8;
           const x = S / 2 + off + hxs * Math.sign(c) * Math.pow(Math.abs(c), p);
           const y = S / 2 + off + hys * Math.sign(s) * Math.pow(Math.abs(s), p) + Math.sin(ph * 2.3 + t * 9) * 3;
           if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
         }
         ctx.stroke();
       };
-      spiral(cx, 'rgba(226,170,60,0.32)', 2.2, 0);
-      spiral(cx, 'rgba(255,244,190,0.35)', 2, 2.5);
+      spiral(cx, 'rgba(222,160,50,0.45)', 2.4, 0);
+      spiral(cx, 'rgba(255,246,196,0.45)', 2.2, 2.6);
       spiral(hx, '#6a6a6a', 3, 0);
       // 小さな気泡
       for (let i = 0; i < 60; i++) {
@@ -366,7 +371,7 @@ const FOOD_BUILDERS = {
       p.setXYZ(i, x + d * Math.sign(x) * 0.6, y + bulge + (y > 0 ? d : 0), z + d * Math.sign(z) * 0.6);
     }
     smoothSeams(geo);
-    const mOut = new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: outer.map, normalMap: outer.normalMap, roughnessMap: outer.roughnessMap, roughness: 1, sheen: 0.3, sheenColor: new THREE.Color(0xfff0b0) });
+    const mOut = new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: outer.map, normalMap: outer.normalMap, roughnessMap: outer.roughnessMap, roughness: 0.9, clearcoat: 0.15, clearcoatRoughness: 0.5 });
     const mCut = new THREE.MeshPhysicalMaterial({ color: 0xffffff, map: cut.map, normalMap: cut.normalMap, roughness: 0.62 });
     const mesh = new THREE.Mesh(geo, [mCut, mCut, mOut, mOut, mOut, mOut]);
     mesh.position.y = 0.012;
@@ -379,7 +384,7 @@ const FOOD_BUILDERS = {
       const n = makeNoise(41, 8), n2 = makeNoise(42, 64), n3 = makeNoise(43, 32);
       return setWrap(paintMaps(512, 256, (x, y) => {
         const u = x / 512, v = y / 256;
-        const c0 = fbm(n, u * 8, v * 4, 4);
+        const c0 = fbm(n, u * 8, v * 4, 3);
         const cr = n2(u * 64, v * 32), cr2 = fbm(n3, u * 32, v * 16, 2);
         let c = mixc([118, 56, 18], [200, 124, 48], smooth(0.28, 0.72, c0));
         c = mixc(c, [232, 170, 86], smooth(0.68, 0.9, cr) * 0.7);
@@ -415,7 +420,7 @@ const FOOD_BUILDERS = {
     const L = 0.046, R = 0.008;
     const maps = (() => {
       const n = makeNoise(51, 8), n2 = makeNoise(52, 32);
-      const W = 256, H = 512;
+      const W = 128, H = 256;
       const cuts = [0.33, 0.5, 0.67];
       return paintMaps(W, H, (x, y) => {
         const u = x / W, v = y / H;
@@ -432,20 +437,20 @@ const FOOD_BUILDERS = {
         if (du < 0.2) {
           for (const vc of cuts) {
             const dist = Math.abs((v - vc) - 0.55 * (u - 0.5)) * H;
-            const w = 9 * (1 - Math.pow(du / 0.2, 2));
+            const w = 4.6 * (1 - Math.pow(du / 0.2, 2));
             if (dist < w) {
               const k = dist / w;
               c = mixc([214, 138, 104], [176, 84, 58], k);
               h = 0.15 + k * 0.2; rough = 0.62;
-            } else if (dist < w + 5) {
-              const k = (dist - w) / 5;
+            } else if (dist < w + 2.6) {
+              const k = (dist - w) / 2.6;
               c = mixc([110, 22, 14], c, k);
               h = 0.75 - k * 0.2;
             }
           }
         }
         return [c[0], c[1], c[2], h, rough];
-      }, { normal: 4, wrap: false });
+      }, { normal: 2.5, wrap: false });
     })();
     // 断面の半径の並び（両端は半球）
     const samples = [];
@@ -512,14 +517,14 @@ const FOOD_BUILDERS = {
         }
       }
       const m = { map: canvasTexture(cc), normalMap: normalFromHeight(hc, 2.5) };
-      return setWrap(m, 9, 5);
+      return setWrap(m, 12, 6);
     })();
     const geo = new THREE.SphereGeometry(1, 48, 30);
     geo.rotateZ(Math.PI / 2);
     const lobes = [], lr = rng(64);
-    for (let k = 0; k < 26; k++) {
-      const yy = 1 - (k + 0.5) / 26 * 1.05, rad = Math.sqrt(Math.max(0, 1 - yy * yy)), a = k * 2.39996 + lr() * 0.3;
-      lobes.push([Math.cos(a) * rad, yy, Math.sin(a) * rad, 0.36 + lr() * 0.12]);
+    for (let k = 0; k < 15; k++) {
+      const yy = 1 - (k + 0.5) / 15 * 1.0, rad = Math.sqrt(Math.max(0, 1 - yy * yy)), a = k * 2.39996 + lr() * 0.3;
+      lobes.push([Math.cos(a) * rad, yy, Math.sin(a) * rad, 0.42 + lr() * 0.1]);
     }
     const p = geo.attributes.position, col = [];
     for (let i = 0; i < p.count; i++) {
@@ -528,12 +533,12 @@ const FOOD_BUILDERS = {
       for (const L of lobes) { const d = Math.acos(clamp(x * L[0] + y * L[1] + z * L[2], -1, 1)); const v = 1 - Math.min(1, d / L[3]) ** 2; if (v > b) b = v; }
       const up = smooth(-0.3, 0.12, y);
       const sm = noise3(x * 9, y * 9, z * 9, 9) - 0.5;
-      const k = 1 + (0.2 * Math.sqrt(b) - 0.14) * up + sm * 0.04 * up;
-      const X = x * 0.0165 * k, Z = z * 0.0155 * k;
-      const Y = y > 0 ? y * 0.0125 * k : y * 0.0048;
-      p.setXYZ(i, X, Y + 0.0198, Z);
+      const k = 1 + (0.3 * Math.pow(b, 0.6) - 0.2) * up + sm * 0.035 * up;
+      const X = x * 0.0175 * k, Z = z * 0.0165 * k;
+      const Y = y > 0 ? y * 0.0135 * k : y * 0.0048;
+      p.setXYZ(i, X, Y + 0.019, Z);
       // 頂点色: 房は緑、房の間の谷は暗く、下側は薄い黄緑
-      const cr = 0.5 + 0.6 * Math.sqrt(b);
+      const cr = 0.35 + 0.75 * Math.pow(b, 0.6);
       const top = [0.62 * cr, 0.8 * cr, 0.5 * cr], low = [1.15, 1.2, 0.85];
       const c = mixc(low, top, up);
       col.push(c[0], c[1], c[2]);
@@ -603,7 +608,7 @@ const FOOD_BUILDERS = {
     const pts = curve.getSpacedPoints(30);
     pts[0].x = 0; pts[pts.length - 1].x = 0;
     const maps = (() => {
-      const W = 256, Hh = 256, cols = 22, rows = 13;
+      const W = 192, Hh = 192, cols = 22, rows = 13;
       const n = makeNoise(81, 8);
       return paintMaps(W, Hh, (x, y) => {
         const u = x / W, v = 1 - y / Hh; // v: 0=先、1=上
@@ -785,8 +790,8 @@ function bentoMaterials(kind) {
     }
     const wood = (() => {
       const n = makeNoise(95, 8), n2 = makeNoise(96, 64);
-      return setWrap(paintMaps(512, 512, (x, y) => {
-        const u = x / 512, v = y / 512;
+      return setWrap(paintMaps(128, 512, (x, y) => {
+        const u = x / 128, v = y / 512;
         const w = fbm(n, u * 2, v * 8, 3);
         const p = v * 56 + (w - 0.5) * 3.2;
         const f = p - Math.floor(p);
@@ -861,7 +866,7 @@ function bentoGeos(kind) {
 function lettuceGeo(kind) {
   return cached('geo:lettuce:' + kind, () => {
     const B = bentoDims(kind), { s, floorY, hd } = B, { x0, x1 } = B.ok;
-    const GX = 46, GZ = 50, pos = [], uv = [], col = [], idx = [];
+    const GX = 52, GZ = 56, pos = [], uv = [], col = [], idx = [];
     const clampIn = makeClampInner(B, 0.0007 * s);
     for (let j = 0; j < GZ; j++) for (let i = 0; i < GX; i++) {
       const u = i / (GX - 1), v = j / (GZ - 1);
@@ -870,7 +875,7 @@ function lettuceGeo(kind) {
       const edge = smooth(0.013 * s, 0, e);
       const wz = smooth(-0.004 * s, 0.004 * s, ex - ez);
       const nn = fbm3(x * 90 / s, 0.3, z * 90 / s, 3, 13);
-      const ruf = Math.sin((x / s) * 2 * Math.PI / 0.0078 + nn * 5) * wz + Math.sin((z / s) * 2 * Math.PI / 0.0078 + nn * 5 + 1.3) * (1 - wz);
+      const ruf = Math.sin((x / s) * 2 * Math.PI / 0.011 + nn * 4) * wz + Math.sin((z / s) * 2 * Math.PI / 0.011 + nn * 4 + 1.3) * (1 - wz);
       // 端は壁ぎわで立ち上がり、フリル状に波打つ
       const inward = edge * (0.0012 * s) * (ruf * 0.5 + 0.5);
       if (ex < ez) x += (x - x0 < x1 - x ? 1 : -1) * inward; else z += (z + hd < hd - z ? 1 : -1) * inward;
@@ -907,7 +912,7 @@ function makeClampInner(B, eps) {
 
 const lettuceMat = () => cached('mat:lettuce', () => {
   const m = lettuceMaps();
-  return new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, map: m.map, normalMap: m.normalMap, normalScale: new THREE.Vector2(1.2, 1.2), roughnessMap: m.roughnessMap, roughness: 1, side: THREE.DoubleSide });
+  return new THREE.MeshStandardMaterial({ color: 0xffffff, vertexColors: true, map: m.map, normalMap: m.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughnessMap: m.roughnessMap, roughness: 1, side: THREE.DoubleSide });
 });
 
 // 休む向き（yaw は box ローカル）
@@ -1043,7 +1048,7 @@ export function createBento(kind) {
     drawShape(name) {
       clearFuri(); furi = [];
       const r = rng(name === 'star' ? 202 : name === 'flower' ? 303 : 101);
-      const unit = rc.hw * 0.74; // 形の 1 単位 (m)
+      const unit = rc.hw * (name === 'star' ? 0.9 : name === 'flower' ? 0.8 : 0.74); // 形の 1 単位 (m)
       const inside = (X, Y) => { // Y 上向き
         if (name === 'star') {
           const a = Math.atan2(X, Y), rr = Math.hypot(X, Y);
@@ -1138,9 +1143,7 @@ export function createBento(kind) {
           p.x += rc.hw * (0.25 + rr() * 0.2); p.z = clamp(SLOTS[k][1] * 0.6, -hd * 0.5, hd * 0.5);
           p.y = riceH(p.x, p.z, riceLevel) - 0.003 * s;
           f.position.copy(p);
-          const roll = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0.3, 0, 1).normalize(), 2.1 + rr());
-          f.quaternion.premultiply(roll);
-          // 転がったあとも、へたは上寄りに（少し傾く）
+          // 転がったあと：へたは上寄りのまま少し傾く
           f.quaternion.setFromEuler(new THREE.Euler(0.5, rr() * 6, 0.35));
           f.userData._base = { p: p.clone(), q: f.quaternion.clone(), slot: 5 };
         }

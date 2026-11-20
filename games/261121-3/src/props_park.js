@@ -193,10 +193,10 @@ function gravelTex() {
     const hn = makeNoise(5, 64);
     const cc = paintPixels(N, N, (x, y) => {
       const v = fbm(hn, x / 8, y / 8, 3), e = R() * 18;
-      return [150 + v * 40 + e, 136 + v * 36 + e, 110 + v * 30 + e];
+      return [168 + v * 36 + e, 152 + v * 32 + e, 124 + v * 28 + e];
     });
     const cx = cc.getContext('2d');
-    const cols = [[214, 200, 170], [200, 194, 182], [186, 160, 124], [228, 218, 196], [160, 136, 106], [236, 232, 222], [138, 132, 124], [205, 184, 150], [222, 206, 176]];
+    const cols = [[214, 200, 170], [204, 196, 180], [192, 170, 134], [228, 218, 196], [176, 154, 124], [234, 228, 214], [170, 162, 150], [210, 190, 156], [222, 206, 176]];
     const SP = 32, sprites = [];
     for (let k = 0; k < 18; k++) {
       const [c, x] = makeCanvas(SP);
@@ -216,8 +216,8 @@ function gravelTex() {
       x.restore();
       sprites.push([c]);
     }
-    for (let i = 0; i < 5200; i++) {
-      const x = R() * N, y = R() * N, s = (0.18 + Math.pow(R(), 1.6) * 0.5);
+    for (let i = 0; i < 6500; i++) {
+      const x = R() * N, y = R() * N, s = (0.16 + Math.pow(R(), 1.8) * 0.42);
       const sp = sprites[(R() * sprites.length) | 0];
       stampWrap([cx], sp, N, x, y, R() * 6.28, s, s, SP, SP * 1.176);
     }
@@ -300,7 +300,7 @@ function woodTex() {
       const ring = Math.pow(Math.abs(Math.sin(g * Math.PI)), 0.6);
       const fine = fbm(n2, u * 64, v * 32, 2);
       const b = 0.72 + 0.18 * ring + 0.1 * fine;
-      ci.data[k] = clamp255(150 * b); ci.data[k + 1] = clamp255(118 * b); ci.data[k + 2] = clamp255(86 * b); ci.data[k + 3] = 255;
+      ci.data[k] = clamp255(138 * b); ci.data[k + 1] = clamp255(112 * b); ci.data[k + 2] = clamp255(88 * b); ci.data[k + 3] = 255;
       const h = (ring * 0.4 + fine * 0.6) * 255;
       hi.data[k] = hi.data[k + 1] = hi.data[k + 2] = h; hi.data[k + 3] = 255;
     }
@@ -330,7 +330,7 @@ function leafMaterial() {
 }
 function leafGeometry() {
   return once('leafGeo', () => {
-    const L = 0.055, W = 0.03, ST = 12, pos = [], uv = [], idx = [];
+    const L = 0.065, W = 0.034, ST = 12, pos = [], uv = [], idx = [];
     for (let i = 0; i <= ST; i++) {
       const s = i / ST;
       const hw = (W / 2) * Math.pow(Math.sin(Math.PI * Math.min(1, s * 0.92 + 0.08)), 0.8) * (1 - 0.35 * s) * (s > 0.97 ? 0.2 : 1);
@@ -650,13 +650,14 @@ function makeBench() {
     for (let i = 0; i < 4; i++) add(wg, len, 0.032, 0.088, 0, 0.43, -0.16 + i * 0.105);
     for (let i = 0; i < 2; i++) add(wg, len, 0.1, 0.028, 0, 0.6 + i * 0.13, -0.235 - i * 0.035, -0.24);
     for (const sx of [-0.62, 0.62]) {
-      add(mg, 0.05, 0.42, 0.055, sx, 0.21, 0.16, 0.04, 0.01);
-      add(mg, 0.05, 0.86, 0.055, sx, 0.42, -0.21, -0.14, 0.01);
-      add(mg, 0.05, 0.05, 0.46, sx, 0.395, -0.02, 0, 0.01);
+      add(mg, 0.05, 0.42, 0.055, sx, 0.21, 0.17, 0, 0.01);
+      add(mg, 0.05, 0.42, 0.055, sx, 0.21, -0.25, 0, 0.01);
+      add(mg, 0.05, 0.46, 0.05, sx, 0.62, -0.28, -0.24, 0.01);
+      add(mg, 0.05, 0.05, 0.5, sx, 0.395, -0.04, 0, 0.01);
       add(mg, 0.05, 0.035, 0.42, sx, 0.62, 0.0, 0.05, 0.01);
       add(mg, 0.05, 0.1, 0.05, sx, 0.62 - 0.07, 0.17, 0, 0.01);
       add(mg, 0.09, 0.012, 0.1, sx, 0.004, 0.17, 0, 0.004);
-      add(mg, 0.09, 0.012, 0.1, sx, 0.004, -0.27, 0, 0.004);
+      add(mg, 0.09, 0.012, 0.1, sx, 0.004, -0.25, 0, 0.004);
     }
     const g = new THREE.Group();
     g.add(new THREE.Mesh(mergeGeometries(wg), wood), new THREE.Mesh(mergeGeometries(mg), metal));
@@ -670,18 +671,18 @@ function hedgeParts() {
   return once('hedge', () => {
     const mk = (flowers, seed) => {
       const R = rng(seed), [c, x] = makeCanvas(256);
-      for (let i = 0; i < 30; i++) {
-        const a = R() * 6.283, d = 20 + R() * 85, px = 128 + Math.cos(a) * d * 0.9, py = 128 + Math.sin(a) * d * 0.9;
+      for (let i = 0; i < 40; i++) {
+        const a = R() * 6.283, d = 16 + R() * 90, px = 128 + Math.cos(a) * d * 0.9, py = 128 + Math.sin(a) * d * 0.9;
         x.save(); x.translate(px, py); x.rotate(a + Math.PI / 2 + (R() - 0.5) * 0.8);
-        const L = 26 + R() * 16, W = L * 0.42, k = 0.75 + R() * 0.5;
+        const L = 20 + R() * 12, W = L * 0.4, k = 0.75 + R() * 0.5;
         const g = x.createLinearGradient(-W, 0, W, 0);
         g.addColorStop(0, `rgb(${30 * k | 0},${58 * k | 0},${20 * k | 0})`); g.addColorStop(0.5, `rgb(${52 * k | 0},${92 * k | 0},${30 * k | 0})`); g.addColorStop(1, `rgb(${36 * k | 0},${66 * k | 0},${22 * k | 0})`);
         x.fillStyle = g; x.beginPath(); x.ellipse(0, 0, W, L, 0, 0, 6.283); x.fill();
         x.strokeStyle = `rgba(150,180,110,0.35)`; x.lineWidth = 1.2; x.beginPath(); x.moveTo(0, L * 0.9); x.lineTo(0, -L * 0.9); x.stroke();
         x.restore();
       }
-      if (flowers) for (let f = 0; f < 3; f++) {
-        const px = 70 + R() * 116, py = 70 + R() * 116, rs = 20 + R() * 8;
+      if (flowers) for (let f = 0; f < 4; f++) {
+        const px = 70 + R() * 116, py = 70 + R() * 116, rs = 13 + R() * 5;
         for (let p = 0; p < 5; p++) {
           x.save(); x.translate(px, py); x.rotate((p / 5) * 6.283 + f);
           const g = x.createRadialGradient(0, -rs * 0.5, 2, 0, -rs * 0.5, rs * 0.7);
@@ -710,9 +711,9 @@ function makeHedge(seed, len) {
   }
   core.computeVertexNormals();
   g.add(new THREE.Mesh(core, coreM));
-  const card = new THREE.PlaneGeometry(0.17, 0.17);
-  const cnt = Math.round(len * 360);
-  const lm = new THREE.InstancedMesh(card, leafM, cnt), fm = new THREE.InstancedMesh(card, flowM, Math.round(cnt * 0.2));
+  const card = new THREE.PlaneGeometry(0.13, 0.13);
+  const cnt = Math.round(len * 520);
+  const lm = new THREE.InstancedMesh(card, leafM, cnt), fm = new THREE.InstancedMesh(card, flowM, Math.round(cnt * 0.12));
   let li = 0, fi = 0;
   const m = new THREE.Matrix4(), q = new THREE.Quaternion(), q2 = new THREE.Quaternion(), nrm = new THREE.Vector3(), up = new THREE.Vector3(0, 0, 1);
   while (li < lm.count || fi < fm.count) {
@@ -991,7 +992,7 @@ export function createPicnicSet(renderer) {
   const blanket = makeBlanket(3);
   group.add(blanket);
 
-  const trunk = makeTrunk(7, 0.27, 3.6, (x, z) => !(x - 1.0 > -0.92 && z - 1.1 > -0.82));
+  const trunk = makeTrunk(7, 0.27, 6, (x, z) => !(x - 1.0 > -0.92 && z - 1.1 > -0.82));
   trunk.position.set(-1.0, 0, -1.1);
   group.add(trunk);
 
@@ -1043,8 +1044,8 @@ export function createPicnicSet(renderer) {
   group.add(fall.mesh);
 
   const fogColor = srgb(214, 226, 206);
-  const fog0 = fogColor.clone(), fogW = srgb(232, 220, 190);
-  const sun0 = sun.color.clone(), sunW = srgb(255, 206, 150), hs0 = hemi.color.clone(), hsW = srgb(255, 226, 200);
+  const fog0 = fogColor.clone(), fogW = srgb(236, 218, 180);
+  const sun0 = sun.color.clone(), sunW = srgb(255, 184, 112), hs0 = hemi.color.clone(), hsW = srgb(255, 226, 200);
   let warmth = 0;
   function setWarmth(k) {
     k = Math.min(1, Math.max(0, k || 0)); warmth = k;
@@ -1084,8 +1085,8 @@ export function createWalkSet(renderer) {
   const group = new THREE.Group(); group.name = 'walkSet';
   const env = makeEnv(renderer);
   const world = new THREE.Group(); group.add(world);
-  const PATH = { cx: -0.35, hw: 0.8, zEnd: -14.6 };
-  const SHEET = { x: 0.25, z: -15.65 };
+  const PATH = { cx: -0.35, hw: 0.8, zEnd: -13.6 };
+  const SHEET = { x: 0.45, z: -14.6 };
   const DIST = 12;
 
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(30, 44).rotateX(-Math.PI / 2).translate(0, 0, -14), groundMaterial(PATH));
@@ -1093,13 +1094,13 @@ export function createWalkSet(renderer) {
   world.add(ground);
 
   // 流れてくるもの（world-local 座標）
-  const trunks = [[1.3, -3.4, 0.2, 11], [-1.75, -6.2, 0.23, 12], [1.45, -9.3, 0.24, 13], [-0.95, -16.5, 0.32, 7]];
-  for (const [x, z, r, s] of trunks) { const t = makeTrunk(s, r, 3.4); t.position.set(x, 0, z); t.rotation.y = s; world.add(t); }
+  const trunks = [[1.3, -3.4, 0.2, 11], [-1.75, -6.2, 0.23, 12], [1.45, -9.3, 0.24, 13], [-1.95, -0.9, 0.21, 14], [SHEET.x - 1.0, SHEET.z - 1.1, 0.3, 7]];
+  for (const [x, z, r, s] of trunks) { const t = makeTrunk(s, r, s === 7 ? 6 : 4.5, s === 7 ? (lx, lz) => !(lx - 1.0 > -0.92 && lz - 1.1 > -0.82) : null); t.position.set(x, 0, z); if (s !== 7) t.rotation.y = s; world.add(t); }
   const benchA = makeBench().clone(); benchA.position.set(1.05, 0, -6.6); benchA.rotation.y = Math.PI / 2; world.add(benchA);
-  const benchB = makeBench().clone(); benchB.position.set(-1.62, 0, -11.6); benchB.rotation.y = -Math.PI / 2; world.add(benchB);
-  const h1 = makeHedge(31, 1.4); h1.position.set(1.12, 0, -1.4); h1.rotation.y = Math.PI / 2; world.add(h1);
+  const benchB = makeBench().clone(); benchB.position.set(-1.62, 0, -10.8); benchB.rotation.y = -Math.PI / 2; world.add(benchB);
+  const h1 = makeHedge(31, 1.4); h1.position.set(1.6, 0, -1.2); h1.rotation.y = Math.PI / 2; world.add(h1);
   const h2 = makeHedge(32, 1.8); h2.position.set(-1.75, 0, -3.3); h2.rotation.y = Math.PI / 2; world.add(h2);
-  const h3 = makeHedge(33, 1.5); h3.position.set(1.2, 0, -12.0); h3.rotation.y = Math.PI / 2 + 0.1; world.add(h3);
+  const h3 = makeHedge(33, 1.5); h3.position.set(1.25, 0, -11.2); h3.rotation.y = Math.PI / 2 + 0.1; world.add(h3);
   const sheet = makeBlanket(9); sheet.position.set(SHEET.x, 0, SHEET.z); sheet.rotation.y = 0.04; world.add(sheet);
   const R = rng(77), fl = [];
   for (let i = 0; i < 34; i++) {
@@ -1137,15 +1138,16 @@ export function createWalkSet(renderer) {
   // 光
   const { sun, hemi } = makeSun(group, new THREE.Vector3(0.1, 0, -2.3), 3.8, sunDir(-62, 55));
   const dapple = new Dapple(group, sun, 512);
-  dapple.add(0.9, -3.8, 2.4, 4, true, 0.72);
-  dapple.add(-2.0, -6.6, 2.5, 5, true, 0.72);
-  dapple.add(1.1, -9.9, 2.6, 6, true, 0.72);
-  dapple.add(2.8, -13.0, 1.9, 2, true, 0.6);
-  dapple.add(-0.8, -17.3, 3.1, 1, true, 0.74);
-  dapple.add(-2.6, 0.6, 2.0, 3, true, 0.6);
+  // 木の葉むらの影は、幹から影の方向へずれた所に落ちる（幹の影の先端が葉むらの影に溶ける）
+  const sd = [0.883, 0.469];
+  trunks.forEach(([x, z, r, s], i) => dapple.add(x + sd[0] * 2.6, z + sd[1] * 2.6, s === 7 ? 2.9 : 2.5, 4 + i, true, s === 7 ? 0.8 : 0.74));
+  // 画面外（左奥）の木の影
+  dapple.add(-1.1, -3.0, 2.2, 2, true, 0.66);
+  dapple.add(-0.7, -9.6, 2.4, 3, true, 0.7);
+  dapple.add(-1.4, -12.4, 2.0, 1, true, 0.62);
 
-  const camera = { position: new THREE.Vector3(0, 0.85, 0), target: new THREE.Vector3(0, 0, -0.85 / Math.tan(THREE.MathUtils.degToRad(37))), fov: 50 };
-  const bagAnchor = new THREE.Vector3(0.06, 0.86, -0.55);
+  const camera = { position: new THREE.Vector3(0, 0.85, 0), target: new THREE.Vector3(0, 0, -0.85 / Math.tan(THREE.MathUtils.degToRad(35))), fov: 50 };
+  const bagAnchor = new THREE.Vector3(0.04, 0.86, -0.55);
   let prog = 0;
   function setProgress(p) {
     prog = Math.min(1, Math.max(0, p || 0));
