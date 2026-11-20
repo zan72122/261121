@@ -6695,8 +6695,9 @@ three/build/three.module.js:
     } else if (fadePhase === 'in') {
       if (posterEl) {
         /* 最初の場面: 重い最初の数コマ(素材の転送・影)を描き終えてから、絵を溶かす */
-        if (posterHold > 0) { posterHold--; fadeT = 0; }
-        else setPoster(1 - Math.min(1, fadeT / POSTER_FADE));
+        if (posterHold > 0) { posterHold--; fadeT = 0; return; }
+        setFade(0); /* 絵の下の暗幕は先に外し、絵から直接場面へ溶ける */
+        setPoster(1 - Math.min(1, fadeT / POSTER_FADE));
         if (fadeT < POSTER_FADE) return;
         setPoster(0);
       }
@@ -6742,7 +6743,7 @@ three/build/three.module.js:
   G.prep = function (fn) { if (typeof fn === 'function') prepQ.push(fn); };
   function stepPrep(dt) {
     if (!prepReady || prepBusy || !prepQ.length) return;
-    if (switching || ptr.id !== null || document.readyState === 'loading') { prepWait = Math.max(prepWait, 0.35); return; }
+    if (switching || ptr.id !== null || document.readyState === 'loading') { prepWait = Math.max(prepWait, 0.8); return; } /* 離した後の動き(扉が閉まる等)が終わるまで待つ */
     if (prepWait > 0) { prepWait -= dt; return; }
     var fn = prepQ.shift();
     prepWait = 0.15;

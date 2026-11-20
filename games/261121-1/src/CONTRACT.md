@@ -40,7 +40,7 @@
 | `src/js/20-home.js` | 場面 home1 / home2 | `G.addScene` |
 | `src/js/30-shelf.js` | 場面 shelf | `G.addScene` |
 | `src/js/40-register.js` | 場面 register | `G.addScene` |
-| `src/js/90-main.js` | 起動 | |
+| `src/js/90-main.js` | 起動・後回しのコードと裏の準備の順番 | |
 
 three r187 の注意: `PCFSoftShadowMap` は廃止（`PCFShadowMap` を使う）。色空間は `texture.colorSpace = THREE.SRGBColorSpace`。`THREE.RoundedBoxGeometry(w,h,d,segments,radius)`、`THREE.BufferGeometryUtils.mergeGeometries([...])`。
 
@@ -190,3 +190,6 @@ G.state = {
 - 光るヒント（`G.glow`）は黄色寄りの通常合成（白い床や冷蔵庫の上でも見える）。大きさは半径 0.2m まで。
 - レジ: 持った品物の高さは「指が台のどこを指しているか」だけで決める（品物の位置で決めると揺れ戻して何度も鳴る）。全部読み終えると、空のかごが手前へ下がってからレシートが出る。
 - ビルドは `node build.cjs`。`tools/preview.cjs` は部品の見た目確認用。
+- 起動を軽くするため、`30-shelf.js` `40-register.js` は後から動く（`build.cjs` の `LATER`）。この2つの中身を、ほかのファイルが読み込み直後に当てにしないこと。
+- `G.prep(fn)` は遊んでいる間に裏で1つずつ進める仕事（Promise を返すと終わるまで次を待つ）。`G.prepScene(name, extras)` は場面を前もって組み立て、計算式と画像を用意する（組み立ては1回だけ。場面の `build` は「今の場面でない時に呼ばれても困らない」ように書く）。
+- `THREE` は使う部品だけの版（`tools/three.entry.js`）。新しい `THREE.○○` を使う時はそこに足して作り直す。
