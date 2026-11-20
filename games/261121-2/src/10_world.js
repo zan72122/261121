@@ -828,7 +828,7 @@
     var rotor = new THREE.Group(); pinG.add(rotor);
     (function () {
       var NSb = 14, NRb = 7, pos = [], col = [], idx = [], base = 0;
-      var cols = [[0.86, 0.12, 0.14], [0.98, 0.78, 0.10], [0.10, 0.45, 0.80], [0.18, 0.62, 0.28]];
+      var cols = [[0.96, 0.95, 0.92], [0.98, 0.78, 0.10], [0.10, 0.45, 0.80], [0.95, 0.45, 0.62]]; // 赤と緑はトマトとまぎれるので使わない
       var tmp = new THREE.Color();
       for (var b = 0; b < 4; b++) {
         var a0 = b * Math.PI / 2 + Math.PI / 4, a1 = a0 + Math.PI / 2;
