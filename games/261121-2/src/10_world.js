@@ -490,7 +490,8 @@
     };
     var skyMat = new THREE.ShaderMaterial({ uniforms: skyU, vertexShader: SKY_VS, fragmentShader: SKY_FS, side: THREE.BackSide, depthWrite: false, defines: { OCT: OCT } });
     var dome = new THREE.Mesh(new THREE.SphereGeometry(150, 48, 24), skyMat);
-    dome.renderOrder = -10; dome.frustumCulled = false; scene.add(dome);
+    // 不透明な物の後に描く（深度テストで、壁や床に隠れた画素の重い空の計算を省く。見た目は同じ）
+    dome.renderOrder = 50; dome.frustumCulled = false; scene.add(dome);
 
     /* ── 星 ── */
     var starRnd = U.rng(4242), NS = 360, sPos = new Float32Array(NS * 3), sSize = new Float32Array(NS), sSeed = new Float32Array(NS), sIdx = new Float32Array(NS);
@@ -545,11 +546,22 @@
     var envScene = new THREE.Scene();
     envScene.add(new THREE.Mesh(new THREE.SphereGeometry(10, 32, 16), new THREE.ShaderMaterial({ uniforms: envU, vertexShader: SKY_VS, fragmentShader: ENV_FS, side: THREE.BackSide, depthWrite: false })));
     var envRT = null, envKey = -1, envTimer = 0, envDirty = true;
+    // 作り直しのたびに新しい描画先を確保しない（同じものに描き直す）。GPU のメモリ確保と、材質の環境の差し替えを避ける
+    var pmAlloc = pmrem._allocateTargets;
+    if (typeof pmAlloc === 'function') {
+      pmrem._allocateTargets = function () {
+        if (envRT && this._pingPongRenderTarget && envRT.width === this._pingPongRenderTarget.width && envRT.height === this._pingPongRenderTarget.height) return envRT;
+        return pmAlloc.call(this);
+      };
+    }
     function buildEnv() {
       var rt = pmrem.fromScene(envScene, 0.02, 0.1, 50);
-      scene.environment = rt.texture;
-      if (envRT) envRT.dispose();
-      envRT = rt; envDirty = false; envTimer = 0;
+      if (rt !== envRT) {
+        scene.environment = rt.texture;
+        if (envRT) envRT.dispose();
+        envRT = rt;
+      }
+      envDirty = false; envTimer = 0;
     }
 
     /* ── 床 ── */

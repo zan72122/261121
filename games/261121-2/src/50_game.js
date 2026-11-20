@@ -1210,27 +1210,64 @@
   }
 
   /* ───────── 性能 ───────── */
-  var perf = { pr: 1, maxPR: 1, acc: 0, n: 0, good: 0, cut: false, skip: 0 };
+  /* 動的解像度。1 秒ごとに「60fps に届かなかったフレームの割合」を見て、描画の細かさ(pixelRatio)を上げ下げする。
+     ・遅い → 0.85 倍ずつ下げる。3 段下げても少しも速くならなければ、画素数のせいではない
+       （iPhone の低電力モードの 30fps 制限など）ので、元の細かさに戻してしばらく触らない。
+     ・下限まで下げてもまだかなり遅い(30fps 前後以下) → 最後の手段として影を切る（シェーダの作り直しが起きるので一度だけ）。
+     ・速いのが続く → 少しずつ戻す。遅かった細かさには、しばらく戻さない（行ったり来たりのカクつきを防ぐ）。 */
+  var perf = { pr: 1, maxPR: 1, minPR: 0.75, n: 0, slow: 0, sum: 0, good: 0, cut: false, skip: 0,
+    from: null, ceil: 9, ceilT: 0, lock: 0, lockN: 0 };
+  var PIXEL_BUDGET = 1.6e6;   // 最初の描画画素数の目安（iPhone の縦画面は 2 倍のまま、iPad は控えめから始めて上げる）
+  function setPR(pr) {
+    pr = U.clamp(pr, perf.minPR, perf.maxPR);
+    if (Math.abs(pr - perf.pr) < 1e-3) return;
+    perf.pr = pr; renderer.setPixelRatio(pr); renderer.setSize(Wd, Ht, false); perf.skip = 3;
+  }
+  function startPR() {
+    var budget = low ? PIXEL_BUDGET * 0.6 : PIXEL_BUDGET;
+    return U.clamp(Math.sqrt(budget / Math.max(1, Wd * Ht)), Math.min(1, perf.maxPR), perf.maxPR);
+  }
+  function perfReset() { perf.n = perf.slow = perf.sum = 0; }
   function perfTick(rawMs) {
     if (perf.skip > 0) { perf.skip--; return; }
-    perf.acc += rawMs; perf.n++;
-    if (perf.acc < 1000) return;
-    var avg = perf.acc / perf.n; perf.acc = 0; perf.n = 0;
-    if (avg > 38) {
+    if (rawMs > 250) return;                              // 復帰直後などの長い空白は数えない
+    perf.n++; perf.sum += Math.min(rawMs, 50); if (rawMs > 20.5) perf.slow++;
+    if (perf.sum < 1000) return;
+    var avg = perf.sum / perf.n, slowFrac = perf.slow / perf.n, secs = perf.sum / 1000;
+    perfReset();
+    if (perf.lock > 0) { perf.lock -= secs; return; }
+    if (perf.ceilT > 0) { perf.ceilT -= secs; if (perf.ceilT <= 0) perf.ceil = 9; }
+    if (slowFrac > 0.2) {
       perf.good = 0;
-      if (perf.pr > 0.75 + 1e-3) { perf.pr = Math.max(0.75, perf.pr * 0.85); renderer.setPixelRatio(perf.pr); renderer.setSize(Wd, Ht, false); perf.skip = 3; }
-      else if (!perf.cut) {
-        perf.cut = true;
+      if (perf.from && avg < perf.from.avg * 0.88) perf.from.helped = true;
+      var stuck = perf.from && !perf.from.helped && (perf.from.steps >= 3 || perf.pr <= perf.minPR + 1e-3);
+      if (perf.pr > perf.minPR + 1e-3 && !stuck) {
+        if (!perf.from) perf.from = { pr: perf.pr, avg: avg, helped: false, steps: 0 };
+        perf.from.steps++;
+        var nx = Math.max(perf.minPR, perf.pr * 0.85);
+        perf.ceil = nx + 1e-3; perf.ceilT = 30;
+        setPR(nx);
+      } else if (stuck) {
+        // 細かさを下げても速くならなかった → 元に戻して、しばらく様子を見る
+        var back = perf.from.pr; perf.from = null; perf.ceil = 9; perf.ceilT = 0;
+        perf.lockN++; perf.lock = Math.min(240, 30 * perf.lockN);
+        setPR(back);
+      } else if (!perf.cut && avg > 28) {
+        perf.cut = true; perf.from = null;
         try {
           renderer.shadowMap.enabled = false;
           scene.traverse(function (o) { if (o.isLight && o.castShadow) o.castShadow = false; if (o.isMesh && o.material) { var m = o.material; if (m.length) m.forEach(function (x) { x.needsUpdate = true; }); else m.needsUpdate = true; } });
           if (can.setShadows) can.setShadows(false);
         } catch (e) { }
       }
-    } else if (avg < 22) {
-      perf.good++;
-      if (perf.good >= 3 && perf.pr < perf.maxPR - 1e-3) { perf.good = 0; perf.pr = Math.min(perf.maxPR, perf.pr / 0.85); renderer.setPixelRatio(perf.pr); renderer.setSize(Wd, Ht, false); perf.skip = 3; }
-    } else perf.good = 0;
+    } else {
+      perf.from = null;
+      if (avg < 17.8 && slowFrac < 0.05) {
+        perf.good++;
+        var top = Math.min(perf.maxPR, perf.ceil);
+        if (perf.good >= 3 && perf.pr < top - 1e-3) { perf.good = 0; setPR(Math.min(top, perf.pr / 0.85)); }
+      } else perf.good = 0;
+    }
   }
 
   /* ───────── ループ ───────── */
@@ -1303,11 +1340,14 @@
       low = (nav.deviceMemory && nav.deviceMemory <= 2) || (nav.hardwareConcurrency && nav.hardwareConcurrency <= 2) || /[?&]low\b/.test(q);
       low = !!low;
       quality = { low: low, shadows: !low, shadowSize: low ? 512 : 1024, particles: low ? 220 : 480 };
-      perf.maxPR = Math.min(window.devicePixelRatio || 1, low ? 1.25 : 2); perf.pr = perf.maxPR;
+      perf.maxPR = Math.min(window.devicePixelRatio || 1, low ? 1.25 : 2); perf.minPR = Math.min(0.75, perf.maxPR);
+      Wd = Math.max(1, window.innerWidth || 390); Ht = Math.max(1, window.innerHeight || 844);
+      perf.pr = startPR();
       try {
         renderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: !low, powerPreference: 'high-performance', alpha: false });
       } catch (e0) { renderer = null; }
       if (!renderer || !renderer.getContext()) { fallback(); return; }
+      renderer.debug.checkShaderErrors = false;   // シェーダの結果待ちで止まらない（シェーダは確認済み）
       renderer.outputColorSpace = THREE.SRGBColorSpace;
       renderer.toneMapping = THREE.ACESFilmicToneMapping;
       renderer.shadowMap.enabled = !!quality.shadows; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -1380,6 +1420,9 @@
 
       applyResize();
       updateCamera(0);
+      // 隠れている物（ざる・実・水・手がかり など）も含めて、全部のシェーダを幕の下で先に作っておく。
+      // 遊んでいる途中で初めて出てきた物のシェーダ作りでカクッと止まるのを防ぐ
+      try { renderer.compile(scene, camera); } catch (eC) { }
       if (!document.hidden) start();
     } catch (err) {
       if (window.console) console.error(err);
