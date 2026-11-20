@@ -27,7 +27,8 @@
 //                       slot 5 の y はその時点のごはんの高さ（後から setRice しても載っている物は動かない）
 //     nearestSlot(worldPoint, isFree) → i | -1（箱の上 margin 0.03 以内でなければ -1）
 //     containsXZ(worldPoint, margin = 0.03)
-//     place(food, i) / take(i) → food / items[6]
+//     place(food, i) / take(i) → food / items[6]   （place した food の親は api.interior＝bento と同じ座標系）
+//     interior (Group) / setInteriorVisible(bool)  ふたを閉じている間は false にする（ごはんの上の物がふたを突き抜けて見えない・中が透けない）
 //     applyShake(amount 0..1, seed = 1)（place 時の姿勢を基準に毎回計算し直す＝何度呼んでもよい）
 //       amount>0.55 かつ slot5 が空なら tomato が slot5 へ移る（items も移動。これは戻らない）
 //   }
@@ -933,10 +934,14 @@ export function createBento(kind) {
   root.name = 'bento:' + kind;
   root.add(new THREE.Mesh(G.outer, M.outer));
   root.add(new THREE.Mesh(G.inner, M.inner));
+  // 中身（仕切り・レタス・ごはん・おかず）は interior にまとめ、ふたを閉じている間は隠せるようにする
+  const interior = new THREE.Group();
+  interior.name = 'bentoInterior';
+  root.add(interior);
   const divMesh = new THREE.Mesh(G.divider, M.inner);
-  root.add(divMesh);
+  interior.add(divMesh);
   const lettuce = new THREE.Mesh(lettuceGeo(kind), lettuceMat());
-  root.add(lettuce);
+  interior.add(lettuce);
   // ふた
   const lid = new THREE.Group();
   lid.name = 'bentoLid:' + kind;
@@ -955,7 +960,7 @@ export function createBento(kind) {
   riceGeo.setAttribute('uv', new THREE.Float32BufferAttribute(ruv, 2));
   riceGeo.setIndex(ridx);
   const riceMesh = new THREE.Mesh(riceGeo, riceMaterial((rc.hw * 2) / RICE_TILE, (hd * 2) / RICE_TILE, kind));
-  root.add(riceMesh);
+  interior.add(riceMesh);
   // ふりかけ canvas
   const FH = 512, FW = Math.round(FH * rc.hw / hd);
   const [fcan, fctx] = makeCanvas(FW, FH);
@@ -963,7 +968,7 @@ export function createBento(kind) {
   const furiMat = new THREE.MeshStandardMaterial({ map: ftex, transparent: true, roughness: 0.62, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const furiMesh = new THREE.Mesh(riceGeo, furiMat);
   furiMesh.renderOrder = 1;
-  root.add(furiMesh);
+  interior.add(furiMesh);
   const mmPx = FH / (hd * 2 * 1000);
 
   const clampIn = makeClampInner(B, 0.0005 * s);
@@ -1024,7 +1029,8 @@ export function createBento(kind) {
   const rimTop = H - 0.0005 * s;
 
   const api = {
-    kind, scale: s, size: { w: W, d: D, h: H }, lid, lidClosedY: B.lidClosedY, items,
+    kind, scale: s, size: { w: W, d: D, h: H }, lid, lidClosedY: B.lidClosedY, items, interior,
+    setInteriorVisible(v) { interior.visible = !!v; },
     riceRect: { cx: rc.cx, cz: 0, hw: rc.hw, hd },
     get riceLevel() { return riceLevel; },
     setRice(level) { riceTarget = clamp(level, 0, 1); },
@@ -1115,7 +1121,7 @@ export function createBento(kind) {
     },
     place(food, i) {
       const f = food.userData.food || { type: 'karaage', height: 0.025, radius: 0.017 };
-      root.add(food);
+      interior.add(food);
       const p = api.slotLocal(i, new THREE.Vector3());
       if (i < 5) p.y = Math.min(rimTop - f.height, Math.max(p.y, rimTop - 0.006 * s - f.height));
       food.position.copy(p);

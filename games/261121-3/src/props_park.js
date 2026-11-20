@@ -12,8 +12,10 @@
 //     fogColor (THREE.Color), fogNear, fogFar : scene.fog = new THREE.Fog(fogColor, fogNear, fogFar) 推奨。
 //                    背景（scene.background）も fogColor にするとよい。
 //     sun           : 太陽ライト。※ THREE.SpotLight（遠方 30m・狭角・decay 0 で平行光と同等）。
-//                    木もれ日は sun.map（ライトクッキー）で光そのものを斑にしているので、
+//                    木もれ日は sun.map（毎フレーム描き直すライトクッキー）で光そのものを斑にしているので、
 //                    上に置いた立体にも正しい向きで斑と影が落ちる。castShadow=true, mapSize 2048。
+//                    影の範囲は光の円錐（Picnic: 原点まわり半径 ≈2.4m、Walk: カメラ前方 ≈4m）。
+//                    ※ sun.position / sun.map は各セットが管理するので外から動かさないこと（強さ・色は可）。
 //     hemi          : HemisphereLight
 //     update(dt, t) : 毎フレーム呼ぶ（草の揺れ・木もれ日の揺れ・葉の落下）
 //     setWarmth(k)  : 0..1。1 で光が傾いて金色がかる（終わりの場面）。0 が通常。
@@ -25,13 +27,14 @@
 //
 // createWalkSet(renderer) → THREE.Group
 //   公園の遊歩道。カメラは原点付近に固定、世界（userData.world）が +Z へ流れる。
-//   砂利道は幅 1.6、中心 x=-0.35（カメラは道の右寄りを歩く）、-Z へまっすぐ。道は前方 14.6m で芝生に終わり、
-//   その先に大きな木の根元とレジャーシート（中心 world-local (0.25, -15.65)）。
+//   砂利道は幅 1.6、中心 x=-0.35（カメラは道の右寄りを歩く）、-Z へまっすぐ。道は world-local z=-13.6 で
+//   芝生に丸く終わり、その先にレジャーシート（中心 world-local (0.45, -14.6)）と、その左奥に大きな木の根元。
+//   p≈1 で画面上部にシートの手前の端と木の根元が見える（縦長画面でも）。
 //   userData = {
 //     env, envIntensity, fogColor, fogNear, fogFar, sun(SpotLight), hemi, update(dt, t),
 //     setProgress(p) : 0..1、全体で 12m 進む。連続・可逆（p の関数として位置が決まる）。
-//     camera: { position: Vector3(0,0.85,0), target: Vector3(0,0,-1.128)（俯角 37°）, fov: 50 }
-//     bagAnchor: Vector3(0.06, 0.86, -0.55)  … バッグの持ち手の頂点（画面上端より上・中央やや右）
+//     camera: { position: Vector3(0,0.85,0), target: Vector3(0,0,-1.214)（俯角 35°）, fov: 50（縦 fov） }
+//     bagAnchor: Vector3(0.04, 0.86, -0.55)  … バッグの持ち手の頂点（推奨カメラで画面上端より上・中央やや右）
 //     world: Group（流れる側。position.z = p*12）
 //   }
 //
@@ -44,7 +47,7 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
 import { rng, makeNoise, fbm, makeCanvas, canvasTexture, paintPixels, shadowAll } from './texutil.js';
 
 const C = {};
-const once = (k, f) => { if (C[k] !== undefined) return C[k]; const t = performance.now(); C[k] = f(); if (globalThis.__PT) console.warn('T', k, (performance.now() - t).toFixed(0)); return C[k]; };
+const once = (k, f) => (C[k] !== undefined ? C[k] : (C[k] = f()));
 const clamp255 = (v) => (v < 0 ? 0 : v > 255 ? 255 : v);
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const srgb = (r, g, b) => new THREE.Color().setRGB(r / 255, g / 255, b / 255, THREE.SRGBColorSpace);
@@ -502,7 +505,7 @@ function plantBlades(pts, U, seed) {
 function cloverGeometry() {
   return once('cloverGeo', () => {
     const n = makeNoise(71, 16);
-    const head = new THREE.IcosahedronGeometry(0.0085, 3);
+    const head = new THREE.IcosahedronGeometry(0.0085, 2);
     const p = head.attributes.position, cols = [];
     for (let i = 0; i < p.count; i++) {
       const x = p.getX(i), y = p.getY(i), z = p.getZ(i), l = Math.hypot(x, y, z);
@@ -981,7 +984,6 @@ function rootScene(o) { while (o.parent) o = o.parent; return o.isScene ? o : nu
 
 // ═══ Picnic ═══════════════════════════════════════════════════════════════
 export function createPicnicSet(renderer) {
-  const t0 = performance.now();
   const group = new THREE.Group(); group.name = 'picnicSet';
   const env = makeEnv(renderer);
 
@@ -1075,13 +1077,11 @@ export function createPicnicSet(renderer) {
     },
   };
   group.userData.update(0, 0);
-  group.userData.buildMs = performance.now() - t0;
   return group;
 }
 
 // ═══ Walk ═════════════════════════════════════════════════════════════════
 export function createWalkSet(renderer) {
-  const t0 = performance.now();
   const group = new THREE.Group(); group.name = 'walkSet';
   const env = makeEnv(renderer);
   const world = new THREE.Group(); group.add(world);
@@ -1167,6 +1167,5 @@ export function createWalkSet(renderer) {
   };
   setProgress(0);
   group.userData.update(0, 0);
-  group.userData.buildMs = performance.now() - t0;
   return group;
 }
