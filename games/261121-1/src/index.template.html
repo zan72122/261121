@@ -24,17 +24,31 @@ body{position:fixed;left:0;top:0;right:0;bottom:0}
   padding:var(--sat) var(--sar) var(--sab) var(--sal)}
 #fb{position:fixed;left:0;top:0;right:0;bottom:0;display:none;
   background:radial-gradient(ellipse at 50% 40%,#f3e2c6 0%,#d9b98f 45%,#8a5f42 100%)}
+#ps{position:fixed;left:0;top:0;right:0;bottom:0;display:none;overflow:hidden;pointer-events:none;background:#e6e0d6}
+.ps #ps{display:block}
+#ps img{position:absolute;left:-4%;top:-4%;width:108%;height:108%;object-fit:cover;display:block;
+  filter:blur(10px);-webkit-filter:blur(10px)}
 #fb img{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:cover;display:block;pointer-events:none}
 </style>
+<script>
+/* 読み込み中に台所のぼかし絵を出すか(おうちの場面から始まる時だけ) */
+(function(){try{var h=String(location.hash||''),m=/scene=([A-Za-z0-9_-]+)/.exec(h),sc=m?m[1]:'';
+if(!m&&!/(^#|[&#])reset\b/.test(h)){var d=JSON.parse(localStorage.getItem('gf-261121-1')||'null');sc=d&&d.scene||'';}
+if(!sc||sc==='home1'||sc==='home2')document.documentElement.className='ps';}catch(e){document.documentElement.className='ps';}})();
+</script>
 </head>
 <body>
 <canvas id="c"></canvas>
 <div id="fade"></div>
 <div id="sa"></div>
-<div id="fb"><!--FALLBACK--></div>
-<noscript><style>#fb{display:block}#fade{display:none}</style></noscript>
+<div id="ps"><!--POSTER--></div>
+<noscript><style>#fb{display:block}#fade{display:none}#ps{display:none}</style></noscript>
 <script>
 /*__BUNDLE__*/
 </script>
+<script type="text/plain" id="later">
+/*__LATER__*/
+</script>
+<div id="fb"><!--FALLBACK--></div>
 </body>
 </html>

@@ -753,6 +753,12 @@
     G.scenes[name] = def;
   };
   G.go = function (name) {
+    if (!G.scenes[name] && typeof G.loadLater === 'function') { try { G.loadLater(); } catch (e) { err('loadLater', e); } }
+    if (!G.scenes[name] && document.readyState === 'loading') {
+      /* まだ届いていない(ふつうは起こらない): 届いてから行く */
+      document.addEventListener('DOMContentLoaded', function () { G.go(name); }, false);
+      return;
+    }
     if (!G.scenes[name] || !G.renderer) return;
     if (switching) {
       if (fadePhase !== 'out' && name !== nextName) queued = name;
@@ -772,6 +778,10 @@
     for (i = 0; i < puffs.length; i++) if (puffs[i].alive) killPuff(puffs[i]);
     for (i = 0; i < shakes.length; i++) if (shakes[i].owner === owner && !shakes[i].dead) shakeEnd(shakes[i]);
   }
+  function buildDef(def) {
+    if (!def._built) { def._built = true; call(def, 'build'); }
+    if (def.scene && !def.scene.environment && G.env) { def.scene.environment = G.env; }
+  }
   function doSwap() {
     var from = G.current;
     var old = curDef();
@@ -784,8 +794,7 @@
     var def = G.scenes[nextName];
     G.current = nextName;
     if (SAVE_SCENES.indexOf(nextName) >= 0 && G.state.scene !== nextName) { G.state.scene = nextName; G.save(); }
-    if (!def._built) { def._built = true; call(def, 'build'); }
-    if (def.scene && !def.scene.environment && G.env) { def.scene.environment = G.env; }
+    buildDef(def);
     call(def, 'enter', from);
     call(def, 'layout');
     /* 暗転中に、まだ見えていない物も含めて素材を組み立てておく(後で出た瞬間に引っかからない) */
@@ -802,9 +811,17 @@
       setFade(Math.min(1, fadeT / FADE));
       if (fadeT >= FADE) { setFade(1); fadePhase = 'swap'; doSwap(); }
     } else if (fadePhase === 'in') {
+      if (posterEl) {
+        /* 最初の場面: 重い最初の数コマ(素材の転送・影)を描き終えてから、絵を溶かす */
+        if (posterHold > 0) { posterHold--; fadeT = 0; }
+        else setPoster(1 - Math.min(1, fadeT / POSTER_FADE));
+        if (fadeT < POSTER_FADE) return;
+        setPoster(0);
+      }
       setFade(1 - Math.min(1, fadeT / FADE));
       if (fadeT >= FADE) {
         setFade(0);
+        if (!prepReady) { prepReady = true; prepWait = 1.0; }
         switching = false;
         fadePhase = '';
         nextName = null;
@@ -812,6 +829,18 @@
         queued = null;
       }
     }
+  }
+  /* 読み込み中に見せる、ぼかした台所の絵(index.html の #ps)。最初の場面が出たら溶けて消える */
+  var posterEl = null, posterHold = 2, POSTER_FADE = 0.45;
+  function setPoster(a) {
+    if (!posterEl) return;
+    if (a <= 0) {
+      try { if (posterEl.parentNode) posterEl.parentNode.removeChild(posterEl); } catch (e) {}
+      posterEl = null;
+      try { document.documentElement.classList.remove('ps'); } catch (e) {}
+      return;
+    }
+    posterEl.style.opacity = String(Math.round(a * 1000) / 1000);
   }
   var lastFade = -1;
   function setFade(a) {
@@ -822,6 +851,62 @@
     fadeEl.style.opacity = String(a);
     fadeEl.style.display = a <= 0 ? 'none' : 'block';
   }
+
+  /* ───────── 裏の準備 ─────────
+     最初の場面が出たあと、指が離れていて場面切り替え中でない時に、
+     次の場面の組み立て・素材の転送・影の計算式(シェーダー)の用意・品物の絵などを1つずつ進める。
+     1つ終えるごとに少し間をあけ、さわられたらしばらく待つ(遊びの邪魔をしない)。 */
+  var prepQ = [], prepBusy = false, prepWait = 0, prepReady = false, prepSkipPerf = false;
+  G.prep = function (fn) { if (typeof fn === 'function') prepQ.push(fn); };
+  function stepPrep(dt) {
+    if (!prepReady || prepBusy || !prepQ.length) return;
+    if (switching || ptr.id !== null || document.readyState === 'loading') { prepWait = Math.max(prepWait, 0.35); return; }
+    if (prepWait > 0) { prepWait -= dt; return; }
+    var fn = prepQ.shift();
+    prepWait = 0.15;
+    prepSkipPerf = true; /* この重いコマは負荷調整の計測に入れない */
+    var r;
+    try { r = fn(); } catch (e) { err('prep', e); r = null; }
+    if (r && typeof r.then === 'function') {
+      prepBusy = true;
+      var done = function () { prepBusy = false; };
+      r.then(done, function (e) { err('prep', e); done(); });
+    }
+  }
+  /* 場面を前もって組み立て、出てくる物(品物・お手本の手)ごと計算式を用意し、画像を GPU へ送っておく */
+  G.prepScene = function (name, extras) {
+    var def = G.scenes[name], r = G.renderer;
+    if (!def || !r) return null;
+    buildDef(def);
+    if (!def.scene || !def.camera) return null;
+    var sc = def.scene, tmp = null;
+    if (extras && extras.length) {
+      tmp = new T.Group();
+      tmp.visible = true;
+      for (var i = 0; i < extras.length; i++) if (extras[i]) tmp.add(extras[i]);
+      sc.add(tmp);
+    }
+    var texs = [];
+    sc.traverse(function (o) {
+      var ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+      for (var j = 0; j < ms.length; j++) {
+        var m = ms[j];
+        for (var k in m) { var v = m[k]; if (v && v.isTexture && texs.indexOf(v) < 0) texs.push(v); }
+      }
+    });
+    var p = null;
+    try {
+      if (typeof r.compileAsync === 'function') p = r.compileAsync(sc, def.camera);
+      else r.compile(sc, def.camera);
+    } catch (e) { err('prep compile ' + name, e); }
+    if (tmp) {
+      sc.remove(tmp);
+      for (var n = tmp.children.length - 1; n >= 0; n--) tmp.remove(tmp.children[n]);
+    }
+    for (var t = 0; t < texs.length; t++) { try { r.initTexture(texs[t]); } catch (e2) { /* */ } }
+    return p;
+  };
+  G.prepGhost = function () { ghostMake(); return H.ghost && !H.ghost.group.parent ? H.ghost.group : null; };
 
   /* ───────── 入力 ───────── */
   var ptr = { id: null, type: '', p: null, ignored: false, t0: 0, sx: 0, sy: 0 };
@@ -1039,7 +1124,8 @@
     var raw = last ? (tnow - last) / 1000 : 1 / 60;
     last = tnow;
     var dt = Math.min(0.05, Math.max(0, raw));
-    perfSample(raw);
+    if (prepSkipPerf) prepSkipPerf = false;
+    else perfSample(raw);
     G.time += dt;
     stepFade(dt);
     stepTweens(dt);
@@ -1049,6 +1135,7 @@
     stepHint(dt);
     for (var i = glows.length - 1; i >= 0; i--) { if (glows[i]) { try { glows[i].update(dt); } catch (e) { err('glow', e); } } }
     stepPuffs(dt);
+    stepPrep(dt);
     def = curDef();
     try {
       if (def && def.scene && def.camera) renderScene(def.scene, def.camera);
@@ -1088,6 +1175,7 @@
       if (canvas) canvas.style.display = 'none';
       if (fadeEl) fadeEl.style.display = 'none';
     } catch (e) {}
+    setPoster(0);
   }
 
   /* ───────── 起動 ───────── */
@@ -1110,6 +1198,11 @@
       document.body.appendChild(fadeEl);
     }
     setFade(1);
+    try {
+      var ps = document.getElementById('ps');
+      if (ps && document.documentElement.classList.contains('ps')) posterEl = ps;
+      else if (ps && ps.parentNode) ps.parentNode.removeChild(ps);
+    } catch (e) { posterEl = null; }
     saEl = document.getElementById('sa');
     if (!saEl) {
       saEl = document.createElement('div');
@@ -1167,9 +1260,11 @@
     if (!document.hidden) startLoop();
 
     var m = /scene=([A-Za-z0-9_-]+)/.exec(hash);
+    var want = m ? m[1] : G.state.scene;
+    /* 棚・レジのコードは後から読む。そこから再開する時だけ先に読む */
+    if (want && !G.scenes[want] && typeof G.loadLater === 'function') { try { G.loadLater(); } catch (e) { err('loadLater', e); } }
     var first = null;
-    if (m && G.scenes[m[1]]) first = m[1];
-    else if (G.scenes[G.state.scene]) first = G.state.scene;
+    if (want && (G.scenes[want] || (SAVE_SCENES.indexOf(want) >= 0 && document.readyState === 'loading'))) first = want;
     else if (G.scenes.home1) first = 'home1';
     if (first) G.go(first);
   };
