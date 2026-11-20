@@ -62,6 +62,7 @@ function makeFinger() {
   const nailMat = new THREE.MeshStandardMaterial({ color: 0xfbe4da, emissive: 0x3a2018, roughness: 0.3, transparent: true, opacity: 0.5 });
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body);
+  body.scale.setScalar(1.25); // 小さな物の上でも見えるよう、実寸より少し大きめ
   // 人差し指: 先が少し細い回転体（長さ 0.046、太さ φ0.016〜0.019）。関節で少しだけ曲がる
   const L = 0.046;
   const prof = [];

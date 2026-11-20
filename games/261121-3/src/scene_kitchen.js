@@ -66,6 +66,11 @@ export function createKitchenScene(ctx) {
     if (k <= 0) return null;
     return out.copy(r.origin).addScaledVector(r.direction, k);
   }
+  // 見た目の上で「どこの上にあるか」: 宙に浮いた点 p を画面上の位置のまま高さ y の面へ落とした点（視差を消す）
+  function seen(p, y) {
+    const sp = engine.project(p);
+    return planePoint(sp.x, sp.y, y, V()) || V(p.x, y, p.z);
+  }
   function worldPos(o, out = V()) { o.updateWorldMatrix(true, false); return o.getWorldPosition(out); }
   function worldQuat(o, out = new THREE.Quaternion()) { o.updateWorldMatrix(true, false); return o.getWorldQuaternion(out); }
   function yawQ(a) { return new THREE.Quaternion().setFromAxisAngle(Y_AXIS, a); }
@@ -105,7 +110,13 @@ export function createKitchenScene(ctx) {
       if (q1) obj.quaternion.slerpQuaternions(q0, q1, clamp(k, 0, 1));
     } }).promise;
   }
-  function addHandle(obj, opts) { const h = input.add(obj, opts); hs.push(h); return h; }
+  function addHandle(obj, opts) { opts.basePri = opts.priority || 0; const h = input.add(obj, opts); hs.push(h); return h; }
+  // いまの主役の当たり判定を最優先にする（小さく映る横画面でも、近くの別の物に指を取られない）
+  const FOCUS = { K0: ['cooker'], K1: ['shamoji'], K2: ['shaker'], K3: ['childFood'], K4: ['lid'], K5: ['bento'] };
+  function applyFocus() {
+    const f = FOCUS[step] || [];
+    for (const h of hs) h.opts.priority = h.opts.basePri + (f.includes(h.opts.role) ? 10 : 0);
+  }
   function cornersOf(objs, pad = 0) {
     const pts = [];
     for (const o of objs) {
@@ -129,7 +140,10 @@ export function createKitchenScene(ctx) {
   function doShot(dur) {
     if (!lastShot) return;
     const { objs, opts } = lastShot;
-    const { pad = 0.01, margin = 0.05, dir = SHOT_DIR, fill = 0.8 } = opts;
+    const { pad = 0.01, margin = 0.05, fill = 0.8 } = opts;
+    let dir = opts.dir || SHOT_DIR;
+    // 横長の画面では俯角を少し浅く（≈45°）して奥行きを縮め、物を大きく映す
+    if (engine.size.w > engine.size.h) dir = V(dir.x, dir.y * 0.82, dir.z);
     const pts = cornersOf(objs, pad);
     if (!pts.length) return;
     const bb = new THREE.Box3().setFromPoints(pts);
@@ -225,7 +239,8 @@ export function createKitchenScene(ctx) {
     obj.userData.busy = false;
     const c = Object.assign({ offset: V(), quat: obj.quaternion.clone() }, opts, {
       target: obj.position.clone(), finger: obj.position.clone(), q0: obj.quaternion.clone(), blend: 0,
-      vel: V(), lean: V(), t: 0, moved: false,
+      vel: V(), lean: V(), t: 0, moved: false, sx: ev.x, sy: ev.y,
+      fingerAt(y) { return planePoint(this.sx, this.sy, y, V()) || V(this.finger.x, y, this.finger.z); },
     });
     carry = c;
     updateCarryTarget(ev);
@@ -235,6 +250,7 @@ export function createKitchenScene(ctx) {
   }
   function updateCarryTarget(ev) {
     const c = carry; if (!c) return;
+    c.sx = ev.x; c.sy = ev.y;
     if (planePoint(ev.x, ev.y - LIFT_PX, c.y, tmpV)) { c.finger.copy(tmpV); c.target.copy(tmpV).add(c.offset); }
     if (ev.dist > 16) c.moved = true;
   }
@@ -244,7 +260,6 @@ export function createKitchenScene(ctx) {
     carry = null;
     if (!ev.cancelled) updateCarryTarget(ev);
     c.cancelled = !!ev.cancelled;
-    c.obj.position.copy(c.obj.position); // その場から
     try { c.onDrop(ev, c); } catch (e) { console.error(e); }
   }
   function carryHandlers(begin) {
@@ -370,6 +385,7 @@ export function createKitchenScene(ctx) {
     token++;
     step = s;
     const tok = token;
+    applyFocus();
     const f = STEP[s];
     if (f) f(tok);
     refreshHint();
@@ -411,6 +427,9 @@ export function createKitchenScene(ctx) {
     },
     async K6(tok) { // バッグが持ち上がる
       const api = tote.userData.api;
+      const tb = [];
+      for (const x of [-0.14, 0.14]) for (const z of [-0.08, 0.08]) for (const y of [0, 0.75]) tb.push(tote.localToWorld(V(x, y, z)));
+      shot([...tb], 1.2, { pad: 0.02, dir: V(-0.55, 1.0, 1), anchor: false, margin: 0.12 });
       await tw.wait(0.25);
       api.setHandles(1);
       audio.play('cloth', { vol: 0.9 });
@@ -470,7 +489,7 @@ export function createKitchenScene(ctx) {
   }
   async function dropShamoji(ev, c) {
     const head = shamoji.position;
-    const over = !c.cancelled && (C.containsXZ(head, 0.06) || C.containsXZ(c.finger, 0.04));
+    const over = !c.cancelled && (C.containsXZ(seen(head, 0.04), 0.06) || C.containsXZ(c.fingerAt(0.04), 0.04));
     const rest = shamojiRestPose();
     if (!over) {
       if (c.moved) audio.play('boing');
@@ -483,8 +502,7 @@ export function createKitchenScene(ctx) {
     refreshHint();
     const tok = token;
     const rt = riceTopWorld();
-    const hd = V(0, 0, 0.0).applyQuaternion(shamojiCarryQ);
-    const above = rt.clone().add(V(0.005, 0.075, 0)).sub(hd);
+    const above = rt.clone().add(V(0.005, 0.075, 0));
     const tilt = shamojiCarryQ.clone().multiply(new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), 0.5));
     await arcTo(shamoji, above, tilt, 0.22, 0.01, 'outCubic');
     // ごはんのかたまりが落ちる
@@ -516,13 +534,14 @@ export function createKitchenScene(ctx) {
     if (!shakerUsable()) { audio.play('tick', { vol: 0.5, rate: 1.6 }); wiggle(shaker, 0.1, 'z', 0.5, 3); return null; }
     pourOn = 0; sprinkleDist = 0; lastPX = ev.x; lastPY = ev.y; lastSprinkleT = 0;
     flags.sprinkledThisCarry = 0;
-    return startCarry(ev, { obj: shaker, y: 0.12, quat: new THREE.Quaternion(), leanK: 0.5, pickRate: 1.2,
+    return startCarry(ev, { obj: shaker, y: 0.08, quat: new THREE.Quaternion(), leanK: 0.5, pickRate: 1.2,
       onMove: (e) => { sprinkleDist += Math.hypot(e.x - lastPX, e.y - lastPY); lastPX = e.x; lastPY = e.y; },
       onFrame: shakerFrame, onDrop: dropShaker });
   }
   function shakerFrame(dt, c) {
     const api = shaker.userData.api;
-    const uv = C.worldToRiceUV(shaker.position);
+    const riceY = riceTopWorld().y;
+    const uv = C.worldToRiceUV(seen(api.capWorld(tmpV2), riceY));
     const over = !flags.closed.child && uv.u > -0.04 && uv.u < 1.04 && uv.v > -0.04 && uv.v < 1.04;
     api.setPour(over ? 1 : 0);
     pourOn = over ? pourOn + dt : 0;
@@ -576,10 +595,10 @@ export function createKitchenScene(ctx) {
   }
   function dropChildFood(food, c) {
     const k = food.userData.k;
-    const p = food.position.clone();
-    const over = !c.cancelled && !flags.closed.child && (C.containsXZ(p, 0.05) || C.containsXZ(c.finger, 0.03));
+    const p = seen(food.position, 0.035), fp = c.fingerAt(0.035);
+    const over = !c.cancelled && !flags.closed.child && (C.containsXZ(p, 0.05) || C.containsXZ(fp, 0.03));
     if (over) {
-      const q = clampIntoBox(child, C.containsXZ(p, 0.05) ? p : c.finger);
+      const q = clampIntoBox(child, C.containsXZ(p, 0.05) ? p : fp);
       let i = C.nearestSlot(q, () => true);
       if (i < 0) i = C.nearestSlot(q, (j) => !C.items[j]);
       const occ = C.items[i];
@@ -643,7 +662,7 @@ export function createKitchenScene(ctx) {
   }
   async function dropLid(lid, b, who, c) {
     const api = b.userData.api;
-    const over = !c.cancelled && (api.containsXZ(lid.position, 0.06) || api.containsXZ(c.finger, 0.03));
+    const over = !c.cancelled && (api.containsXZ(seen(lid.position, 0.045), 0.06) || api.containsXZ(c.fingerAt(0.045), 0.03));
     lid.userData.busy = true;
     const tok = token;
     if (!over) {
@@ -654,7 +673,6 @@ export function createKitchenScene(ctx) {
       return;
     }
     flags.closed[who] = true;
-    if (who === 'child') { flags.closedChildAt = 1; }
     const top = b.localToWorld(V(0, api.lidClosedY, 0));
     await arcTo(lid, top.clone().add(V(0, 0.025, 0)), b.quaternion, 0.18, 0.005, 'outCubic');
     await arcTo(lid, top, b.quaternion, 0.09, 0, 'inCubic');
@@ -676,7 +694,7 @@ export function createKitchenScene(ctx) {
       if (step === 'K5' && !flags.bagged.has(who) && !b.userData.busy) {
         setHint('K5-carry', null);
         b.userData.home = b.position.clone();
-        return startCarry(ev, { obj: b, y: 0.12, quat: new THREE.Quaternion(), leanK: 0.45, pickRate: 0.9, onDrop: (e, c) => dropBento(b, who, c) });
+        return startCarry(ev, { obj: b, y: 0.22, quat: new THREE.Quaternion(), leanK: 0.45, pickRate: 0.9, onDrop: (e, c) => dropBento(b, who, c) });
       }
       if (flags.bagged.has(who)) { audio.play('cloth', { vol: 0.5 }); tote.userData.api.squash(0.3); return null; }
       if (flags.closed[who]) { audio.play('tick', { vol: 0.55, rate: 1.15 }); wiggle(b.userData.api.lid, 0.05, 'z', 0.4); return null; }
@@ -685,12 +703,11 @@ export function createKitchenScene(ctx) {
     };
   }
   async function dropBento(b, who, c) {
-    const tp = worldPos(tote);
     const near = (p) => {
       const lp = tote.worldToLocal(p.clone());
       return Math.abs(lp.x) < 0.135 + 0.09 && Math.abs(lp.z) < 0.075 + 0.09;
     };
-    const over = !c.cancelled && (near(b.position) || near(c.finger));
+    const over = !c.cancelled && (near(seen(b.position, 0.2)) || near(c.fingerAt(0.2)));
     b.userData.busy = true;
     const tok = token;
     if (!over) {
@@ -714,7 +731,6 @@ export function createKitchenScene(ctx) {
     b.userData.busy = false;
     if (!alive(tok)) return;
     if (flags.bagCount >= 2) go('K6'); else refreshHint();
-    void tp;
   }
 
   const lidHandles = {};
@@ -789,20 +805,20 @@ export function createKitchenScene(ctx) {
 
   function addInputs() {
     // 炊飯器（K0 は前上部ぜんたいが大きなボタン）
-    addHandle(cooker, { radius: 0.12, priority: 2, center: () => worldPos(cooker.userData.api.button),
+    addHandle(cooker, { role: 'cooker', radius: 0.12, priority: 2, center: () => worldPos(cooker.userData.api.button),
       down() { if (step === 'K0' && !flags.cookerOpen) openCooker(); else reactCooker(); } });
-    addHandle(shamoji, Object.assign({ radius: 0.06, priority: 4, center: () => shamojiGrip() }, carryHandlers(beginShamoji)));
-    addHandle(plate, { radius: 0.12, priority: 0, down() { audio.play('ceramic'); wiggle(plate, 0.012, 'z', 0.4, 3); } });
-    addHandle(shaker, Object.assign({ radius: 0.045, priority: 3, center: () => worldPos(shaker).add(V(0, 0.045, 0)) }, carryHandlers(beginShaker)));
-    addHandle(tote, { priority: 0, down() { audio.play('cloth', { vol: 0.5 }); tote.userData.api.squash(0.35); } });
-    addHandle(mama, Object.assign({ priority: 1 }, carryHandlers(beginBento(mama, 'mama'))));
-    addHandle(child, Object.assign({ priority: 1 }, carryHandlers(beginBento(child, 'child'))));
-    lidHandles.child = addHandle(childLid, Object.assign({ priority: 2, radius: 0.08, center: () => worldPos(childLid) }, carryHandlers(beginLid(childLid, child, 'child'))));
-    lidHandles.mama = addHandle(mamaLid, Object.assign({ priority: 2, radius: 0.09, center: () => worldPos(mamaLid) }, carryHandlers(beginLid(mamaLid, mama, 'mama'))));
+    addHandle(shamoji, Object.assign({ role: 'shamoji', radius: 0.06, priority: 4, center: () => shamojiGrip() }, carryHandlers(beginShamoji)));
+    addHandle(plate, { role: 'plate', radius: 0.12, priority: 0, down() { audio.play('ceramic'); wiggle(plate, 0.012, 'z', 0.4, 3); } });
+    addHandle(shaker, Object.assign({ role: 'shaker', radius: 0.045, priority: 3, center: () => worldPos(shaker).add(V(0, 0.045, 0)) }, carryHandlers(beginShaker)));
+    addHandle(tote, { role: 'tote', priority: 0, down() { audio.play('cloth', { vol: 0.5 }); tote.userData.api.squash(0.35); } });
+    addHandle(mama, Object.assign({ role: 'bento', priority: 1 }, carryHandlers(beginBento(mama, 'mama'))));
+    addHandle(child, Object.assign({ role: 'bento', priority: 1 }, carryHandlers(beginBento(child, 'child'))));
+    lidHandles.child = addHandle(childLid, Object.assign({ role: 'lid', priority: 2, radius: 0.08, center: () => worldPos(childLid) }, carryHandlers(beginLid(childLid, child, 'child'))));
+    lidHandles.mama = addHandle(mamaLid, Object.assign({ role: 'lid', priority: 2, radius: 0.09, center: () => worldPos(mamaLid) }, carryHandlers(beginLid(mamaLid, mama, 'mama'))));
     for (const type of FOODS) {
       const cf = childFoods[type], mf = mamaFoods[type];
-      addHandle(cf, Object.assign({ radius: Math.max(0.022, cf.userData.food.radius + 0.006), priority: 5, center: foodCenter(cf) }, carryHandlers(beginChildFood(cf))));
-      addHandle(mf, { radius: mf.userData.food.radius, priority: 3, center: foodCenter(mf), pad: 8,
+      addHandle(cf, Object.assign({ role: 'childFood', radius: Math.max(0.022, cf.userData.food.radius + 0.006), priority: 5, center: foodCenter(cf) }, carryHandlers(beginChildFood(cf))));
+      addHandle(mf, { role: 'mamaFood', radius: mf.userData.food.radius, priority: 3, center: foodCenter(mf), pad: 8,
         down() { if (!mf.userData.busy) reactFood(mf); if (step === 'K3') { flags.childActed = true; refreshHint(); } } });
     }
   }
