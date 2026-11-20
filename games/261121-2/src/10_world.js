@@ -8,18 +8,24 @@
 
   function V3(a) { return new THREE.Vector3(a[0], a[1], a[2]); }
 
-  /* 任意サイズの画素キャンバスを複数同時に作る。fn(x, y, u, v, outs) outs[k] = [r,g,b,a] */
-  function pixels(w, h, n, fn) {
+  /* 任意サイズの画素キャンバスを複数同時に作る。fn(x, y, u, v, outs) outs[k] = [r,g,b,a]
+     generator（1行ごとに yield）。下書き（U.Q > 1）では画素を間引き、x, y は本来の大きさの画素座標で渡す */
+  function* pixels(w0, h0, n, fn) {
+    var w = U.qsize(w0), h = U.qsize(h0), qx = w0 / w, qy = h0 / h;
     var cs = [], ctxs = [], imgs = [], outs = [], k;
     for (k = 0; k < n; k++) {
-      var c = U.makeCanvas(w, h); cs.push(c); var cx = c.getContext('2d'); ctxs.push(cx);
+      var c = U.makeCanvas(w, h); c._q = qx; cs.push(c); var cx = c.getContext('2d'); ctxs.push(cx);
       imgs.push(cx.createImageData(w, h)); outs.push([0, 0, 0, 255]);
     }
-    for (var y = 0; y < h; y++) for (var x = 0; x < w; x++) {
-      for (k = 0; k < n; k++) { var o = outs[k]; o[0] = o[1] = o[2] = 0; o[3] = 255; }
-      fn(x, y, (x + 0.5) / w, (y + 0.5) / h, outs);
-      var i = (y * w + x) * 4;
-      for (k = 0; k < n; k++) { var d = imgs[k].data, oo = outs[k]; d[i] = oo[0]; d[i + 1] = oo[1]; d[i + 2] = oo[2]; d[i + 3] = oo[3]; }
+    for (var y = 0; y < h; y++) {
+      var yy = qy > 1 ? Math.floor((y + 0.5) * qy) : y;
+      for (var x = 0; x < w; x++) {
+        for (k = 0; k < n; k++) { var o = outs[k]; o[0] = o[1] = o[2] = 0; o[3] = 255; }
+        fn(qx > 1 ? Math.floor((x + 0.5) * qx) : x, yy, (x + 0.5) / w, (y + 0.5) / h, outs);
+        var i = (y * w + x) * 4;
+        for (k = 0; k < n; k++) { var d = imgs[k].data, oo = outs[k]; d[i] = oo[0]; d[i + 1] = oo[1]; d[i + 2] = oo[2]; d[i + 3] = oo[3]; }
+      }
+      yield;
     }
     for (k = 0; k < n; k++) ctxs[k].putImageData(imgs[k], 0, 0);
     return cs;
@@ -29,17 +35,19 @@
   function setG(o, v) { o[0] = o[1] = o[2] = b255(v); }
 
   /* ───────────────────────── 手続きテクスチャ ───────────────────────── */
-  function floorTex(S, tileM) {
-    var cs = pixels(S, S, 3, function (x, y, u, v, o) {
+  function* floorTex(S, tileM) {
+    // 下書き（間引き率 q）では、細かい粒は平均されて薄まり、細い目地は画素より細いので、幅を広げて淡く描く
+    var q = U.Q, fq = 1 / Math.sqrt(q), jw = tileM / S * q;
+    var cs = yield* pixels(S, S, 3, function (x, y, u, v, o) {
       var big = U.fbm(u * 2, v * 2, 3, 11, 2);
       var mid = U.fbm(u * 9, v * 9, 3, 23, 9);
       var fine = U.noise2(x * 0.5, y * 0.5, 31, S * 0.5);
       var g = U.hash2(x, y, 5), spk = U.hash2(x, y, 7);
       var j = Math.min(Math.min(u, 1 - u), Math.min(v, 1 - v)) * tileM;
-      var joint = 1 - U.smooth(0.0015, 0.004, j);
+      var joint = q > 1 ? (1 - U.smooth(0.0, jw, j)) * 0.6 : 1 - U.smooth(0.0015, 0.004, j);
       var stain = U.smooth(0.56, 0.78, U.fbm(u * 4 + 3, v * 4 + 1, 4, 41, 4));
-      var c = 0.63 + (big - 0.5) * 0.08 + (mid - 0.5) * 0.09 + (fine - 0.5) * 0.06 + (g - 0.5) * 0.07;
-      if (spk > 0.992) c -= 0.12; else if (spk < 0.006) c += 0.09;
+      var c = 0.63 + (big - 0.5) * 0.08 + (mid - 0.5) * 0.09 + ((fine - 0.5) * 0.06 + (g - 0.5) * 0.07) * fq;
+      if (spk > 0.992) c -= 0.12 * fq; else if (spk < 0.006) c += 0.09 * fq;
       c -= stain * 0.035;
       c *= 1 - joint * 0.3;
       setRGB(o[0], c * 1.05, c * 1.0, c * 0.9 - stain * 0.01);
@@ -48,13 +56,13 @@
       setG(o[1], hh);
       setG(o[2], 0.86 + (g - 0.5) * 0.1 - stain * 0.14 + joint * 0.06);
     });
-    return { map: cs[0], normal: U.heightToNormal(cs[1], 1.4), rough: cs[2] };
+    return { map: cs[0], normal: (yield* U.heightToNormalG(cs[1], 1.4)), rough: cs[2] };
   }
 
-  function wallTex(W, H) {
+  function* wallTex(W, H) {
     // 1.5m 幅 × 1.05m 高さ。横方向だけタイル
     var per = W / 2;
-    var cs = pixels(W, H, 2, function (x, y, u, v, o) {
+    var cs = yield* pixels(W, H, 2, function (x, y, u, v, o) {
       var hb = (1 - v) * 1.05; // 床からの高さ
       var sp = U.noise2(x / 2, y / 2, 3, per);
       var sp2 = U.noise2(x / 5, y / 5, 9, W / 5);
@@ -72,11 +80,11 @@
       setRGB(o[0], c * 0.995, c * 0.985, c * 0.955 - splash * 0.02);
       setG(o[1], 0.5 + (sp - 0.5) * 0.5 + (sp2 - 0.5) * 0.35 + (g - 0.5) * 0.15);
     });
-    return { map: cs[0], normal: U.heightToNormal(cs[1], 1.0) };
+    return { map: cs[0], normal: (yield* U.heightToNormalG(cs[1], 1.0)) };
   }
 
-  function terracottaTex(W, H) {
-    var cs = pixels(W, H, 2, function (x, y, u, v, o) {
+  function* terracottaTex(W, H) {
+    var cs = yield* pixels(W, H, 2, function (x, y, u, v, o) {
       var m = U.fbm(u * 8, v * 4, 4, 51, 8);
       var f = U.noise2(x / 1.5, y / 1.5, 53, W / 1.5);
       var g = U.hash2(x, y, 55);
@@ -88,11 +96,11 @@
       var ring = Math.sin(v * 140) * 0.08;
       setG(o[1], 0.5 + (f - 0.5) * 0.4 + (g - 0.5) * 0.15 + ring);
     });
-    return { map: cs[0], normal: U.heightToNormal(cs[1], 1.0) };
+    return { map: cs[0], normal: (yield* U.heightToNormalG(cs[1], 1.0)) };
   }
 
-  function soilTex(S) {
-    var cs = pixels(S, S, 2, function (x, y, u, v, o) {
+  function* soilTex(S) {
+    var cs = yield* pixels(S, S, 2, function (x, y, u, v, o) {
       var cl = U.fbm(u * 14, v * 14, 3, 61, 14);
       var fn = U.noise2(x / 1.6, y / 1.6, 63, S / 1.6);
       var g = U.hash2(x, y, 65), p = U.hash2(x >> 1, y >> 1, 67), bk = U.noise2(x / 3, y / 1.2, 69, S / 3);
@@ -106,13 +114,13 @@
       setRGB(o[0], r, gg, b);
       setG(o[1], 0.45 + (cl - 0.5) * 0.5 + (fn - 0.5) * 0.4 + white * 0.25 - pore * 0.2);
     });
-    return { map: cs[0], normal: U.heightToNormal(cs[1], 2.0) };
+    return { map: cs[0], normal: (yield* U.heightToNormalG(cs[1], 2.0)) };
   }
 
-  function zincTex(S) {
+  function* zincTex(S) {
     var N = 12, pts = [], i, j;
     for (j = 0; j < N; j++) for (i = 0; i < N; i++) pts.push([(i + U.hash2(i, j, 71)) / N, (j + U.hash2(i, j, 73)) / N, U.hash2(i, j, 75), U.hash2(i, j, 77)]);
-    var cs = pixels(S, S, 2, function (x, y, u, v, o) {
+    var cs = yield* pixels(S, S, 2, function (x, y, u, v, o) {
       var ci = Math.floor(u * N), cj = Math.floor(v * N), best = 9, sec = 9, val = 0, val2 = 0;
       for (var dj = -1; dj <= 1; dj++) for (var di = -1; di <= 1; di++) {
         var ii = ci + di, jj = cj + dj, ox = 0, oy = 0;
@@ -131,8 +139,8 @@
     return { map: cs[0], rough: cs[1] };
   }
 
-  function stoneTex(S) {
-    var cs = pixels(S, S, 1, function (x, y, u, v, o) {
+  function* stoneTex(S) {
+    var cs = yield* pixels(S, S, 1, function (x, y, u, v, o) {
       var m = U.fbm(u * 6, v * 6, 3, 81, 6), g = U.hash2(x, y, 83), s = U.hash2(x >> 1, y >> 1, 85);
       var c = 0.62 + (m - 0.5) * 0.08 + (g - 0.5) * 0.1;
       if (s > 0.94) c -= 0.25; else if (s < 0.05) c += 0.12;
@@ -141,16 +149,16 @@
     return { map: cs[0] };
   }
 
-  function brushedTex(S) {
-    var cs = pixels(S, S, 1, function (x, y, u, v, o) {
+  function* brushedTex(S) {
+    var cs = yield* pixels(S, S, 1, function (x, y, u, v, o) {
       var col = U.noise2(x * 0.7, y * 0.02, 91, S * 0.7) * 0.6 + U.hash2(x, 0, 93) * 0.4;
       setG(o[0], 0.22 + col * 0.16);
     });
     return { rough: cs[0] };
   }
 
-  function bumpsTex() {
-    var cs = pixels(32, 32, 1, function (x, y, u, v, o) {
+  function* bumpsTex() {
+    var cs = yield* pixels(32, 32, 1, function (x, y, u, v, o) {
       var h = 0;
       for (var k = 0; k < 4; k++) {
         var cx = (k % 2) * 0.5 + 0.25, cy = (k < 2 ? 0.25 : 0.75), sh = (k < 2 ? 0 : 0.25);
@@ -159,7 +167,7 @@
       }
       setG(o[0], 0.3 + h * 0.6);
     });
-    return { normal: U.heightToNormal(cs[0], 2.5) };
+    return { normal: (yield* U.heightToNormalG(cs[0], 2.5)) };
   }
 
   /* ───────────────────────── 時刻の表 ───────────────────────── */
@@ -572,7 +580,7 @@
 
     /* ── 床 ── */
     var FT = 1.5, fS = low ? 256 : 512;
-    var ft = floorTex(fS, FT);
+    var ft = U.prog(function () { return floorTex(fS, FT); });
     var floorW = 12, floorD = 8.6, floorCZ = (-0.6 + 8) / 2;
     var fmap = T(ft.map, true, floorW / FT, floorD / FT), fnor = T(ft.normal, false, floorW / FT, floorD / FT), frou = T(ft.rough, false, floorW / FT, floorD / FT);
     // 目地を x≈-0.95 / 0.55、z≈0.75 に寄せる
@@ -661,7 +669,7 @@
     }
 
     /* ── 腰壁・笠木・手すり ── */
-    var wt = wallTex(low ? 256 : 512, low ? 192 : 384);
+    var wt = U.prog(function () { return wallTex(low ? 256 : 512, low ? 192 : 384); });
     var wallMat = new THREE.MeshStandardMaterial({ map: T(wt.map, true, 8, 1), normalMap: T(wt.normal, false, 8, 1), roughness: 0.93, metalness: 0, color: 0xf4f2ee });
     wallMat.normalScale.set(0.45, 0.45);
     var wallF = mesh(new THREE.PlaneGeometry(12, L.WALL_H), wallMat, false, true);
@@ -690,7 +698,7 @@
     });
 
     /* ── 立水栓 ── */
-    var bt = brushedTex(64);
+    var bt = U.run(brushedTex(64));
     var steel = new THREE.MeshStandardMaterial({ color: 0xd2d4d6, metalness: 1, roughness: 1, roughnessMap: T(bt.rough, false, 1, 1) });
     var chrome = new THREE.MeshStandardMaterial({ color: 0xf2f3f4, metalness: 1, roughness: 0.07 });
     var darkM = new THREE.MeshStandardMaterial({ color: 0x0c0c0c, roughness: 0.6 });
@@ -732,7 +740,7 @@
 
     /* ── 水受けパン ── */
     (function () {
-      var st = stoneTex(low ? 128 : 256);
+      var st = U.prog(function () { return stoneTex(low ? 128 : 256); });
       var sm = new THREE.MeshStandardMaterial({ map: T(st.map, true, 2.5, 2.5), roughness: 0.72, color: 0xf2f0ec });
       function rr(sh, a, r, hole) {
         sh.moveTo(-a + r, -a); sh.lineTo(a - r, -a); sh.quadraticCurveTo(a, -a, a, -a + r); sh.lineTo(a, a - r); sh.quadraticCurveTo(a, a, a - r, a);
@@ -753,7 +761,7 @@
     })();
 
     /* ── 素焼きの丸鉢 ── */
-    var tc = terracottaTex(low ? 256 : 512, low ? 128 : 256);
+    var tc = U.prog(function () { return terracottaTex(low ? 256 : 512, low ? 128 : 256); });
     var potMat = new THREE.MeshStandardMaterial({ map: T(tc.map, true, 2, 1), normalMap: T(tc.normal, false, 2, 1), roughness: 0.88, metalness: 0 });
     potMat.normalScale.set(0.3, 0.3);
     var planterG = new THREE.Group(); planterG.position.set(L.PLANTER[0], 0, L.PLANTER[2]); scene.add(planterG);
@@ -764,7 +772,7 @@
     var saucerPts = [[0.001, 0.0], [0.150, 0.0], [0.156, 0.003], [0.168, 0.028], [0.172, 0.034], [0.170, 0.038], [0.165, 0.037], [0.162, 0.032], [0.152, 0.013], [0.14, 0.012], [0.001, 0.012]];
     var saucer = mesh(lathe(saucerPts, 64), potMat, true, true); planterG.add(saucer);
     // 土
-    var sT = soilTex(low ? 128 : 256);
+    var sT = U.prog(function () { return soilTex(low ? 128 : 256); });
     var soilMap = T(sT.map, true, 1.5, 1.5), soilNor = T(sT.normal, false, 1.5, 1.5);
     var soilMat = new THREE.MeshStandardMaterial({ map: soilMap, normalMap: soilNor, roughness: 0.97, metalness: 0, vertexColors: true });
     var NR = 22, NSeg = 56, SR = L.SOIL_R;
@@ -821,7 +829,7 @@
     }
     setMoisture(0);
     // 支柱（イボ竹）
-    var bm = bumpsTex();
+    var bm = U.run(bumpsTex());
     var stakeLen = 1.38 - 0.17;
     var stakeMat = new THREE.MeshStandardMaterial({ color: 0x2f6a34, roughness: 0.38, metalness: 0.0, normalMap: T(bm.normal, false, 1, Math.round(stakeLen / 0.022)) });
     var stake = mesh(new THREE.CylinderGeometry(0.0055, 0.0055, stakeLen, 14, 1, true), stakeMat, true, true);
@@ -831,7 +839,7 @@
     world.planter = { group: planterG, center: V3(L.PLANT_BASE), soilY: L.SOIL_Y, soilR: L.SOIL_R, setMoisture: setMoisture, setHole: setHole };
 
     /* ── 伏せたブリキのバケツ ── */
-    var zt = zincTex(low ? 128 : 256);
+    var zt = U.prog(function () { return zincTex(low ? 128 : 256); });
     var zincMat = new THREE.MeshStandardMaterial({ map: T(zt.map, true, 5, 2), roughnessMap: T(zt.rough, false, 5, 2), roughness: 1, metalness: 1, color: 0xc4c8ca });
     var bucketG = new THREE.Group(); bucketG.position.set(L.BUCKET[0], 0, L.BUCKET[2]); scene.add(bucketG);
     var bPts = [[0.106, 0.012], [0.1135, 0.0005], [0.1195, 0.002], [0.1215, 0.0065], [0.119, 0.0105], [0.1145, 0.0125], [0.1135, 0.02]];

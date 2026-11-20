@@ -156,7 +156,12 @@
     tex.colorSpace = THREE.SRGBColorSpace; tex.generateMipmaps = true;
     tex.minFilter = THREE.LinearMipmapLinearFilter; tex.magFilter = THREE.LinearFilter; tex.anisotropy = 4;
     tex.needsUpdate = true;
-    var nrm = U.tex(U.heightToNormal(hc, 2.2), {});
+    // 法線は下書き（縮めた高さから）を先に使い、清書は裏で作る
+    var nrm = U.tex(U.prog(function* () {
+      var src = hc;
+      if (U.Q > 1) { var sz = U.qsize(S); src = U.makeCanvas(sz, sz); src.getContext('2d').drawImage(hc, 0, 0, sz, sz); src._q = S / sz; }
+      return { n: yield* U.heightToNormalG(src, 2.2) };
+    }).n, {});
     return { map: tex, normal: nrm };
   }
   /* 小葉1枚。キャンバスの上が付け根（短い小葉柄）、下が先。v=0 が付け根になる */

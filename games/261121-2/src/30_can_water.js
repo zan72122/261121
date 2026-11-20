@@ -23,8 +23,11 @@
   /* ───── 亜鉛のスパングル（色と粗さ）。タイル可能 ───── */
   var zincCache = null;
   function zincTextures(low) {
-    if (zincCache) return zincCache;
-    var size = low ? 256 : 512, n = 14, rng = U.rng(731);
+    if (!zincCache) zincCache = U.prog(function () { return zincTexturesG(low); });
+    return zincCache;
+  }
+  function* zincTexturesG(low) {
+    var size = U.qsize(low ? 256 : 512), n = 14, rng = U.rng(731);
     var cells = [];
     for (var j = 0; j < n; j++) for (var i = 0; i < n; i++) {
       cells.push({ x: (i + 0.15 + rng() * 0.7) / n, y: (j + 0.15 + rng() * 0.7) / n, b: rng(), a: rng() * PI, k: 140 + rng() * 160, r: rng() });
@@ -33,7 +36,7 @@
     var cx = cc.getContext('2d'), rx = rc.getContext('2d');
     var ci = cx.createImageData(size, size), ri = rx.createImageData(size, size);
     var cd = ci.data, rd = ri.data;
-    for (var py = 0; py < size; py++) for (var px = 0; px < size; px++) {
+    for (var py = 0; py < size; py++, yield) for (var px = 0; px < size; px++) {
       var u = (px + 0.5) / size, v = (py + 0.5) / size;
       var gi = Math.floor(u * n), gj = Math.floor(v * n);
       var d1 = 9, d2 = 9, best = null, bx = 0, by = 0;
@@ -61,8 +64,7 @@
       rd[k] = 0; rd[k + 1] = U.clamp(rough * 255, 0, 255); rd[k + 2] = 0; rd[k + 3] = 255;
     }
     cx.putImageData(ci, 0, 0); rx.putImageData(ri, 0, 0);
-    zincCache = { map: cc, rough: rc };
-    return zincCache;
+    return { map: cc, rough: rc };
   }
 
   /* ════════════════════════════ じょうろ ════════════════════════════ */
@@ -206,10 +208,13 @@
     /* ── 中の水面（水平を保ち、胴の内側だけに描く） ── */
     var rip = (function () {
       var s = low ? 128 : 256;
-      var h = U.pixelCanvas(s, function (u, v, o) {
-        var g = U.fbm(u * 6, v * 6, 4, 41, 6) * 255; o[0] = o[1] = o[2] = g;
-      });
-      var t = U.tex(U.heightToNormal(h, 1.6), { repeat: [1, 1] }); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
+      var n = U.prog(function* () {
+        var h = yield* U.pixelCanvasG(s, function (u, v, o) {
+          var g = U.fbm(u * 6, v * 6, 4, 41, 6) * 255; o[0] = o[1] = o[2] = g;
+        });
+        return { normal: yield* U.heightToNormalG(h, 1.6) };
+      }).normal;
+      var t = U.tex(n, { repeat: [1, 1] }); t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
     })();
     var waterMat = new THREE.MeshStandardMaterial({ color: 0x3e4648, roughness: 0.03, metalness: 0.0, normalMap: rip, envMapIntensity: 1.2 });
     waterMat.normalScale.set(0.55, 0.55); rip.repeat.set(2.5, 2.5);
@@ -278,13 +283,17 @@
   }
   var weaveCache = null;
   function weaveCanvas() {
-    if (weaveCache) return weaveCache;
-    var s = 512, n = 16, rng = U.rng(91), shades = [];
+    if (!weaveCache) weaveCache = U.prog(weaveCanvasG);
+    return weaveCache;
+  }
+  function* weaveCanvasG() {
+    var s = U.qsize(512), n = 16, rng = U.rng(91), shades = [];
     for (var i = 0; i < n * 2; i++) shades.push(0.88 + rng() * 0.24);
     var col = U.makeCanvas(s), hgt = U.makeCanvas(s);
     var cx = col.getContext('2d'), hx = hgt.getContext('2d');
     var ci = cx.createImageData(s, s), hi = hx.createImageData(s, s);
-    for (var py = 0; py < s; py++) for (var px = 0; px < s; px++) {
+    hgt._q = 512 / s;
+    for (var py = 0; py < s; py++, yield) for (var px = 0; px < s; px++) {
       var u = (px + 0.5) / s * n, v = (py + 0.5) / s * n;
       var i = Math.floor(u), j = Math.floor(v), fu = u - i, fv = v - j;
       var inV = fu > 0.07 && fu < 0.93, inH = fv > 0.09 && fv < 0.91;   /* V: v 方向にのびる帯（列 i）、H: u 方向（行 j） */
@@ -307,8 +316,7 @@
       hi.data[k] = hi.data[k + 1] = hi.data[k + 2] = hv; hi.data[k + 3] = 255;
     }
     cx.putImageData(ci, 0, 0); hx.putImageData(hi, 0, 0);
-    weaveCache = { col: col, nrm: U.heightToNormal(hgt, 2.5) };
-    return weaveCache;
+    return { col: col, nrm: yield* U.heightToNormalG(hgt, 2.5) };
   }
 
   function createZaru(scene) {
@@ -327,7 +335,7 @@
     /* 縁の巻き（籐を斜めに巻いた太い輪） */
     var rimTex = (function () {
       var s = 256;
-      var c = U.pixelCanvas(s, function (u, v, o) {
+      var c = U.pixelCanvas(s, function (u, v, o) {   /* 細いすじは間引くと縞がにじむので、そのまま作る */
         var t = (u * 120 + v) % 1, b = Math.sin(t * PI);
         var f = U.noise2(u * 400, v * 8, 9);
         var sh = 0.62 + 0.38 * Math.pow(b, 0.5) * (0.9 + 0.1 * f);

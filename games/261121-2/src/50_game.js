@@ -1305,12 +1305,36 @@
       renderer.render(scene, camera);
       frames++;
       if (!veilOff && frames >= 4) { veilOff = true; var v = document.getElementById('veil'); if (v) v.className = 'off'; }
-      perfTick(raw);
+      // 幕が上がったら、裏で残りの準備（隠れている物のシェーダ・テクスチャの清書）を少しずつ進める
+      var busy = veilOff && background();
+      if (busy) perfReset(); else perfTick(raw);   // 裏の作業中のフレームは、動的解像度の判断に使わない
     } catch (e) {
       errCount++;
       if (errCount < 4 && window.console) console.error(e);
       if (hold) { hold = null; ptrId = null; }
     }
+  }
+  /* ───────── 裏の準備 ─────────
+     起動時は、最初の場面に見えている物だけを描いてすぐ幕を上げる。
+     隠れている物（ざる・実・水・手がかり など）のシェーダは、1フレームに1つずつ先に作っておき、
+     遊んでいる途中で初めて出てきたときのカクつきを防ぐ。テクスチャは下書きから清書へ差し替える。 */
+  var warm = null, warmI = 0;
+  function needsProgram(o) {
+    var m = o.material; if (!m) return false;
+    var ms = Array.isArray(m) ? m : [m];
+    for (var i = 0; i < ms.length; i++) if (!renderer.properties.get(ms[i]).currentProgram) return true;
+    return false;
+  }
+  function background() {
+    if (!warm) { warm = []; scene.traverse(function (o) { if (o.material) warm.push(o); }); }
+    var busy = false;
+    while (warmI < warm.length && !needsProgram(warm[warmI])) warmI++;
+    if (warmI < warm.length) {
+      busy = true;
+      if (frames & 1) { try { renderer.compile(warm[warmI], camera, scene); } catch (e) { } warmI++; }
+    }
+    if (U.bgBusy()) { busy = true; U.bgTick(4); }
+    return busy;
   }
   function start() { if (running || dead) return; running = true; last = 0; perf.skip = 2; if (!rafId) rafId = requestAnimationFrame(frame); }
   function stop() { running = false; if (rafId) { cancelAnimationFrame(rafId); rafId = 0; } }
@@ -1321,8 +1345,9 @@
       var fb = document.getElementById('fallback');
       var img = window.__FALLBACK_IMG__;
       if (fb) {
-        if (img && typeof img === 'string' && img.indexOf('data:') === 0) fb.style.backgroundImage = 'url("' + img + '")';
-        else fb.style.background = 'linear-gradient(180deg, #a7c7e6 0%, #cfe0ee 55%, #efe9de 100%)';
+        // 画像が届くまで（届かなくても）同じ色合いのグラデーションを下に敷く
+        var grad = 'linear-gradient(180deg, #a7c7e6 0%, #cfe0ee 55%, #efe9de 100%)';
+        fb.style.backgroundImage = (img && typeof img === 'string' && /^(data:|assets\/)/.test(img)) ? 'url("' + img + '"), ' + grad : grad;
         fb.className = 'on';
       }
       var v = document.getElementById('veil'); if (v) v.className = 'off';
@@ -1420,9 +1445,7 @@
 
       applyResize();
       updateCamera(0);
-      // 隠れている物（ざる・実・水・手がかり など）も含めて、全部のシェーダを幕の下で先に作っておく。
-      // 遊んでいる途中で初めて出てきた物のシェーダ作りでカクッと止まるのを防ぐ
-      try { renderer.compile(scene, camera); } catch (eC) { }
+      // シェーダは最初の描画で見えている物の分だけ作る（隠れている物の分は幕が上がってから裏で作る。background()）
       if (!document.hidden) start();
     } catch (err) {
       if (window.console) console.error(err);

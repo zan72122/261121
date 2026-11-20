@@ -21,9 +21,9 @@ if (args[0] === '--preview') {
   files = fs.readdirSync(src).filter((f) => /^\d\d_.*\.js$/.test(f)).sort().map((f) => path.join(src, f));
 }
 
+// WebGL が使えないときの代わりの静止画は、埋め込まずに必要になったときだけ読む（最初の読み込みを軽くする）
 let fallback = '';
-const fb = path.join(here, 'assets', 'fallback.jpg');
-if (fs.existsSync(fb)) fallback = 'data:image/jpeg;base64,' + fs.readFileSync(fb).toString('base64');
+if (fs.existsSync(path.join(here, 'assets', 'fallback.jpg'))) fallback = 'assets/fallback.jpg';
 
 const app = files.map((f) => `/* ── ${path.basename(f)} ── */\n` + read(f)).join('\n;\n');
 let html = read(path.join(src, 'shell.html'));
