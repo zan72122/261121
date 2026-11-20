@@ -38,9 +38,9 @@
       var j = Math.min(Math.min(u, 1 - u), Math.min(v, 1 - v)) * tileM;
       var joint = 1 - U.smooth(0.0015, 0.004, j);
       var stain = U.smooth(0.56, 0.78, U.fbm(u * 4 + 3, v * 4 + 1, 4, 41, 4));
-      var c = 0.63 + (big - 0.5) * 0.14 + (mid - 0.5) * 0.09 + (fine - 0.5) * 0.06 + (g - 0.5) * 0.07;
+      var c = 0.63 + (big - 0.5) * 0.08 + (mid - 0.5) * 0.09 + (fine - 0.5) * 0.06 + (g - 0.5) * 0.07;
       if (spk > 0.992) c -= 0.12; else if (spk < 0.006) c += 0.09;
-      c -= stain * 0.07;
+      c -= stain * 0.035;
       c *= 1 - joint * 0.3;
       setRGB(o[0], c * 1.05, c * 1.0, c * 0.9 - stain * 0.01);
       var hh = 0.5 + (fine - 0.5) * 0.35 + (g - 0.5) * 0.22 + (mid - 0.5) * 0.25 - joint * 0.6;
@@ -110,7 +110,7 @@
   }
 
   function zincTex(S) {
-    var N = 10, pts = [], i, j;
+    var N = 12, pts = [], i, j;
     for (j = 0; j < N; j++) for (i = 0; i < N; i++) pts.push([(i + U.hash2(i, j, 71)) / N, (j + U.hash2(i, j, 73)) / N, U.hash2(i, j, 75), U.hash2(i, j, 77)]);
     var cs = pixels(S, S, 2, function (x, y, u, v, o) {
       var ci = Math.floor(u * N), cj = Math.floor(v * N), best = 9, sec = 9, val = 0, val2 = 0;
@@ -123,10 +123,10 @@
       }
       var edge = U.smooth(0.0, 0.0006, Math.sqrt(sec) - Math.sqrt(best));
       var fern = U.noise2(x / 2, y / 2, 79, S / 2);
-      var c = 0.78 + val * 0.18 + (fern - 0.5) * 0.06 * val2;
+      var c = 0.84 + val * 0.08 + (fern - 0.5) * 0.04 * val2;
       c *= 0.93 + 0.07 * edge;
       setRGB(o[0], c, c * 1.005, c * 1.02);
-      setG(o[1], 0.28 + val2 * 0.28 + (1 - edge) * 0.1);
+      setG(o[1], 0.34 + val2 * 0.14 + (1 - edge) * 0.06);
     });
     return { map: cs[0], rough: cs[1] };
   }
@@ -165,8 +165,8 @@
   /* ───────────────────────── 時刻の表 ───────────────────────── */
   // 色は sRGB の 16 進。zen/hor: 空, glow: 太陽まわりの光, sun: 平行光の色, hs/hg: 半球光, far: 遠景の明るさ
   var KEYS = [
-    { t: 0.00, zen: 0x0b1733, hor: 0x23365a, glow: 0x000000, cloud: 0x2a3550, sun: 0xa9bde6, sunI: 0.55, hs: 0x5a6c9a, hg: 0x22242c, hI: 0.9, exp: 1.15, night: 1, far: 0x1b2232, haze: 0.18, cover: 0.62, env: 1.0 },
-    { t: 0.19, zen: 0x0b1733, hor: 0x23365a, glow: 0x000000, cloud: 0x2a3550, sun: 0xa9bde6, sunI: 0.55, hs: 0x5a6c9a, hg: 0x22242c, hI: 0.9, exp: 1.15, night: 1, far: 0x1b2232, haze: 0.18, cover: 0.62, env: 1.0 },
+    { t: 0.00, zen: 0x0b1733, hor: 0x23365a, glow: 0x000000, cloud: 0x2a3550, sun: 0xa9bde6, sunI: 0.55, hs: 0x5a6c9a, hg: 0x2a2c34, hI: 1.0, exp: 1.25, night: 1, far: 0x1b2232, haze: 0.18, cover: 0.62, env: 1.0 },
+    { t: 0.19, zen: 0x0b1733, hor: 0x23365a, glow: 0x000000, cloud: 0x2a3550, sun: 0xa9bde6, sunI: 0.55, hs: 0x5a6c9a, hg: 0x2a2c34, hI: 1.0, exp: 1.25, night: 1, far: 0x1b2232, haze: 0.18, cover: 0.62, env: 1.0 },
     { t: 0.235, zen: 0x253c6c, hor: 0x9a8496, glow: 0xb86a58, cloud: 0x7a6a80, sun: 0xb8b4d0, sunI: 0.35, hs: 0x77809e, hg: 0x3a3634, hI: 1.0, exp: 1.3, night: 0.6, far: 0x40404e, haze: 0.35, cover: 0.6, env: 1.0 },
     { t: 0.265, zen: 0x6688c8, hor: 0xf6b89c, glow: 0xffb27a, cloud: 0xf6c4b4, sun: 0xffb682, sunI: 1.9, hs: 0xd0bcc4, hg: 0x6e6056, hI: 0.75, exp: 1.08, night: 0.12, far: 0x8a8078, haze: 0.45, cover: 0.58, env: 1.0 },
     { t: 0.30, zen: 0x4a88dc, hor: 0xb4cfe8, glow: 0xfff0d6, cloud: 0xffffff, sun: 0xfff0dc, sunI: 3.0, hs: 0xcadcf0, hg: 0x8e857a, hI: 0.7, exp: 1.0, night: 0, far: 0xc8c6c0, haze: 0.42, cover: 0.58, env: 1.0 },
@@ -175,8 +175,8 @@
     { t: 0.72, zen: 0x46609e, hor: 0xffa060, glow: 0xff8a3c, cloud: 0xffb48c, sun: 0xffa45c, sunI: 2.7, hs: 0xffa86c, hg: 0x7a5038, hI: 1.35, exp: 1.05, night: 0, far: 0x4a3430, haze: 0.30, cover: 0.58, env: 1.0 },
     { t: 0.77, zen: 0x2c3c72, hor: 0xd8785c, glow: 0xe2603a, cloud: 0xc07070, sun: 0xff7a48, sunI: 0.7, hs: 0x9e7c96, hg: 0x3c3038, hI: 0.95, exp: 1.25, night: 0.3, far: 0x3a2e36, haze: 0.3, cover: 0.6, env: 1.0 },
     { t: 0.82, zen: 0x13234e, hor: 0x46486e, glow: 0x50283a, cloud: 0x3a3a58, sun: 0xa9bde6, sunI: 0.45, hs: 0x55628c, hg: 0x24242a, hI: 0.9, exp: 1.2, night: 0.8, far: 0x22263a, haze: 0.22, cover: 0.62, env: 1.0 },
-    { t: 0.86, zen: 0x0b1733, hor: 0x23365a, glow: 0x000000, cloud: 0x2a3550, sun: 0xa9bde6, sunI: 0.55, hs: 0x5a6c9a, hg: 0x22242c, hI: 0.9, exp: 1.15, night: 1, far: 0x1b2232, haze: 0.18, cover: 0.62, env: 1.0 },
-    { t: 1.00, zen: 0x0b1733, hor: 0x23365a, glow: 0x000000, cloud: 0x2a3550, sun: 0xa9bde6, sunI: 0.55, hs: 0x5a6c9a, hg: 0x22242c, hI: 0.9, exp: 1.15, night: 1, far: 0x1b2232, haze: 0.18, cover: 0.62, env: 1.0 }
+    { t: 0.86, zen: 0x0b1733, hor: 0x23365a, glow: 0x000000, cloud: 0x2a3550, sun: 0xa9bde6, sunI: 0.55, hs: 0x5a6c9a, hg: 0x2a2c34, hI: 1.0, exp: 1.25, night: 1, far: 0x1b2232, haze: 0.18, cover: 0.62, env: 1.0 },
+    { t: 1.00, zen: 0x0b1733, hor: 0x23365a, glow: 0x000000, cloud: 0x2a3550, sun: 0xa9bde6, sunI: 0.55, hs: 0x5a6c9a, hg: 0x2a2c34, hI: 1.0, exp: 1.25, night: 1, far: 0x1b2232, haze: 0.18, cover: 0.62, env: 1.0 }
   ];
   var CKEYS = ['zen', 'hor', 'glow', 'cloud', 'sun', 'hs', 'hg', 'far'];
   var NKEYS = ['sunI', 'hI', 'exp', 'night', 'haze', 'cover', 'env'];
@@ -315,7 +315,7 @@
     '  if (c.a < 0.02) discard;',
     '  vec3 col = c.rgb*uLight;',
     '  col = mix(col, uHaze, uHazeAmt);',
-    '  col += texture2D(winMap, vUv).rgb * uNight * 2.2;',
+    '  col += texture2D(winMap, vUv).rgb * uNight * 1.5;',
     '  gl_FragColor = vec4(col, c.a);',
     '  #include <tonemapping_fragment>',
     '  #include <colorspace_fragment>',
@@ -590,12 +590,12 @@
     /* ── 濡れたしみ ── */
     var WX0 = -1.3, WX1 = 1.1, WZ0 = -0.6, WZ1 = 0.9, WW = 128, WH = 96;
     var wetV = new Float32Array(WW * WH), wetN = new Float32Array(WW * WH);
-    for (var wi = 0; wi < WW * WH; wi++) wetN[wi] = U.fbm((wi % WW) / 7, Math.floor(wi / WW) / 7, 3, 111);
+    for (var wi = 0; wi < WW * WH; wi++) wetN[wi] = U.fbm((wi % WW) / 5, Math.floor(wi / WW) / 4, 4, 111);
     var wetC = U.makeCanvas(WW, WH), wetX = wetC.getContext('2d'), wetImg = wetX.createImageData(WW, WH);
     for (wi = 0; wi < WW * WH; wi++) wetImg.data[wi * 4 + 3] = 255;
     wetX.putImageData(wetImg, 0, 0);
     var wetT = U.tex(wetC, {}); wetT.anisotropy = 1;
-    var wetMat = new THREE.MeshStandardMaterial({ color: 0x46433f, roughness: 0.16, metalness: 0, alphaMap: wetT, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
+    var wetMat = new THREE.MeshStandardMaterial({ color: 0x2c2a27, roughness: 0.12, metalness: 0, alphaMap: wetT, transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -4 });
     var wetMesh = mesh(new THREE.PlaneGeometry(WX1 - WX0, WZ1 - WZ0), wetMat, false, true);
     wetMesh.rotation.x = -Math.PI / 2; wetMesh.position.set((WX0 + WX1) / 2, 0.0015, (WZ0 + WZ1) / 2); wetMesh.renderOrder = 2; wetMesh.visible = false; scene.add(wetMesh);
     var wetAny = false, wetDirty = false, wetAcc = 0, wetRnd = U.rng(99);
@@ -626,7 +626,7 @@
       for (var k = 0; k < WW * WH; k++) {
         var v = wetV[k];
         if (v > 0) { v -= dry; if (v < 0) v = 0; wetV[k] = v; any = true; }
-        var a = (v - 0.12 * wetN[k]) * 3.0; a = a < 0 ? 0 : (a > 1 ? 1 : a);
+        var a = (v - 0.32 * wetN[k]) * 7.0; a = a < 0 ? 0 : (a > 1 ? 1 : a);
         d[k * 4] = d[k * 4 + 1] = d[k * 4 + 2] = (a * 230) | 0;
       }
       wetX.putImageData(wetImg, 0, 0); wetT.needsUpdate = true;
@@ -728,7 +728,7 @@
     /* ── 素焼きの丸鉢 ── */
     var tc = terracottaTex(low ? 256 : 512, low ? 128 : 256);
     var potMat = new THREE.MeshStandardMaterial({ map: T(tc.map, true, 2, 1), normalMap: T(tc.normal, false, 2, 1), roughness: 0.88, metalness: 0 });
-    potMat.normalScale.set(0.5, 0.5);
+    potMat.normalScale.set(0.3, 0.3);
     var planterG = new THREE.Group(); planterG.position.set(L.PLANTER[0], 0, L.PLANTER[2]); scene.add(planterG);
     function lathe(pts, seg) { return new THREE.LatheGeometry(pts.map(function (p) { return new THREE.Vector2(p[0], p[1]); }), seg); }
     var potPts = [[0.001, 0.012], [0.132, 0.012], [0.136, 0.016], [0.140, 0.03], [0.165, 0.14], [0.186, 0.240], [0.188, 0.252], [0.196, 0.256], [0.2015, 0.262], [0.203, 0.27],
@@ -805,7 +805,7 @@
 
     /* ── 伏せたブリキのバケツ ── */
     var zt = zincTex(low ? 128 : 256);
-    var zincMat = new THREE.MeshStandardMaterial({ map: T(zt.map, true, 3, 1), roughnessMap: T(zt.rough, false, 3, 1), roughness: 1, metalness: 1, color: 0xc4c8ca });
+    var zincMat = new THREE.MeshStandardMaterial({ map: T(zt.map, true, 5, 2), roughnessMap: T(zt.rough, false, 5, 2), roughness: 1, metalness: 1, color: 0xc4c8ca });
     var bucketG = new THREE.Group(); bucketG.position.set(L.BUCKET[0], 0, L.BUCKET[2]); scene.add(bucketG);
     var bPts = [[0.106, 0.012], [0.1135, 0.0005], [0.1195, 0.002], [0.1215, 0.0065], [0.119, 0.0105], [0.1145, 0.0125], [0.1135, 0.02]];
     function bR(y) { return 0.1135 - (0.1135 - 0.0855) * (y - 0.02) / (0.196 - 0.02); }
@@ -816,10 +816,7 @@
     [-1, 1].forEach(function (s) {
       var ear = mesh(new THREE.BoxGeometry(0.004, 0.03, 0.022), zincMat, true, true); ear.position.set(s * 0.115, 0.03, 0); ear.rotation.z = s * 0.15; bucketG.add(ear);
     });
-    var bail = new THREE.CatmullRomCurve3([new THREE.Vector3(-0.118, 0.022, 0), new THREE.Vector3(-0.13, 0.006, 0.06), new THREE.Vector3(-0.07, 0.003, 0.15), new THREE.Vector3(0.0, 0.003, 0.168), new THREE.Vector3(0.07, 0.003, 0.15), new THREE.Vector3(0.13, 0.006, 0.06), new THREE.Vector3(0.118, 0.022, 0)]);
-    var bailM = mesh(new THREE.TubeGeometry(bail, 40, 0.0022, 8, false), zincMat, true, true); bucketG.add(bailM);
-    bailM.rotation.y = 0.5;
-    var ringAmp = 0, ringPh = 0;
+        var ringAmp = 0, ringPh = 0;
     world.bucket = {
       group: bucketG, top: new THREE.Vector3(L.BUCKET[0], L.BUCKET_TOP_Y, L.BUCKET[2]), topR: 0.085,
       ring: function (s) { ringAmp = Math.min(1, ringAmp + (s == null ? 0.5 : s)); }
