@@ -525,6 +525,15 @@
       var mat = new THREE.ShaderMaterial({ uniforms: u, vertexShader: BAND_VS, fragmentShader: BAND_FS, transparent: true, depthWrite: false, side: THREE.DoubleSide });
       var g = new THREE.CylinderGeometry(R, R, yt - yb, 96, 1, true, Math.PI - th / 2, th);
       var m = new THREE.Mesh(g, mat); m.position.set(0, (yt + yb) / 2, 3); m.renderOrder = order; m.frustumCulled = false;
+      // カメラの高さ・距離が変わっても、手すりの上端をかすめる視線が絵の「高さ 0」に当たるよう帯を上下させる
+      var baseY = (yt + yb) / 2;
+      m.onBeforeRender = function (rn, sc2, cam) {
+        var cy = cam.position.y, cz = cam.position.z;
+        var slope = (cy - 1.16) / Math.max(0.5, cz + 0.6);
+        var yLine = cy - slope * (cz - 3 + R);
+        m.position.y = baseY + (yLine - y0);
+        m.updateMatrixWorld();
+      };
       scene.add(m); u.far = far; bandU.push(u);
     }
     band(110, -4, 14, 777, true, -8, 0.42, -1.2);
