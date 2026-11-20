@@ -19,65 +19,91 @@
 import * as THREE from 'three';
 import { makeCanvas, canvasTexture } from './texutil.js';
 
+// 光の輪: 通常合成（明るい木の天板の上でも暖色に見える）。濃いめの金色の芯＋外側のやわらかい縁＋内側のうっすらした光
 function ringTexture() {
   const S = 256;
   const [c, ctx] = makeCanvas(S);
   const img = ctx.createImageData(S, S);
+  const R0 = 0.7;
   for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
     const r = Math.hypot(x - S / 2 + 0.5, y - S / 2 + 0.5) / (S / 2);
-    // 外側の輪（r≈0.72）＋内側のうっすらした光
-    const ring = Math.exp(-Math.pow((r - 0.72) / 0.12, 2));
-    const inner = 0.22 * Math.max(0, 1 - r / 0.75);
-    const a = Math.min(1, ring + inner) * (r < 1 ? 1 : 0);
+    const core = Math.exp(-Math.pow((r - R0) / 0.075, 2));            // 輪の芯
+    const halo = Math.exp(-Math.pow((r - R0) / 0.2, 2)) * 0.5;         // やわらかい縁
+    const inner = 0.16 * Math.max(0, 1 - r / R0) * (r < R0 ? 1 : 0);   // 内側のうっすら
+    const a = Math.min(1, core * 0.95 + halo + inner) * (r < 1 ? 1 : 0) * Math.min(1, (1 - r) * 12);
+    // 色: 芯は濃い金色（やや橙）、縁へ行くほど明るい山吹色
+    const k = Math.min(1, core * 1.2);
     const i = (y * S + x) * 4;
-    img.data[i] = 255; img.data[i + 1] = 196; img.data[i + 2] = 120; img.data[i + 3] = a * 255;
+    img.data[i] = 255; img.data[i + 1] = Math.round(196 - 62 * k); img.data[i + 2] = Math.round(92 - 72 * k); img.data[i + 3] = Math.round(a * 255);
   }
   ctx.putImageData(img, 0, 0);
   return canvasTexture(c);
 }
+// 運ぶ先: 通常合成のうすい金色の円＋ふち
 function discTexture() {
   const S = 128;
   const [c, ctx] = makeCanvas(S);
-  const g = ctx.createRadialGradient(S / 2, S / 2, 0, S / 2, S / 2, S / 2);
-  g.addColorStop(0, 'rgba(255,226,170,0.55)');
-  g.addColorStop(0.65, 'rgba(255,214,150,0.35)');
-  g.addColorStop(0.85, 'rgba(255,214,150,0.5)');
-  g.addColorStop(1, 'rgba(255,214,150,0)');
-  ctx.fillStyle = g; ctx.fillRect(0, 0, S, S);
+  const img = ctx.createImageData(S, S);
+  for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
+    const r = Math.hypot(x - S / 2 + 0.5, y - S / 2 + 0.5) / (S / 2);
+    const fill = 0.5 * (1 - Math.pow(Math.min(1, r / 0.86), 3));
+    const edge = Math.exp(-Math.pow((r - 0.86) / 0.07, 2)) * 1.0;
+    const a = Math.min(1, fill + edge) * Math.min(1, Math.max(0, (1 - r) * 10));
+    const i = (y * S + x) * 4;
+    img.data[i] = 255; img.data[i + 1] = Math.round(184 - 44 * edge); img.data[i + 2] = Math.round(70 - 50 * edge); img.data[i + 3] = Math.round(a * 255);
+  }
+  ctx.putImageData(img, 0, 0);
   return canvasTexture(c);
 }
 
-// やさしい形の半透明の指（指先から +Z 方向へ伸びる。指先が原点）
+// やさしい子どもの右手（半透明）。人差し指をのばし、ほかの指は軽くにぎる。指先が原点、手は +Z 側、つめは +Y。
 function makeFinger() {
-  const S = 1.3;
-  const mat = new THREE.MeshStandardMaterial({ color: 0xe9a98a, emissive: 0x3a1a10, roughness: 0.55, metalness: 0, transparent: true, opacity: 0.45, depthWrite: true });
-  const nailMat = new THREE.MeshStandardMaterial({ color: 0xf7ddd0, roughness: 0.3, transparent: true, opacity: 0.45 });
+  const mat = new THREE.MeshStandardMaterial({ color: 0xf0bfa0, emissive: 0x4a2418, roughness: 0.6, metalness: 0, transparent: true, opacity: 0.5, depthWrite: true });
+  const nailMat = new THREE.MeshStandardMaterial({ color: 0xfbe4da, emissive: 0x3a2018, roughness: 0.3, transparent: true, opacity: 0.5 });
   const root = new THREE.Group();
   const body = new THREE.Group(); root.add(body);
-  const fr = 0.0072 * S, fl = 0.056 * S;
-  // 人差し指（カプセル）
-  const finger = new THREE.Mesh(new THREE.CapsuleGeometry(fr, fl, 8, 20), mat);
-  finger.rotation.x = Math.PI / 2; finger.position.z = fr + fl / 2;
+  // 人差し指: 先が少し細い回転体（長さ 0.046、太さ φ0.016〜0.019）。関節で少しだけ曲がる
+  const L = 0.046;
+  const prof = [];
+  for (let k = 0; k <= 10; k++) { const a = (k / 10) * Math.PI / 2; prof.push(new THREE.Vector2(Math.sin(a) * 0.0079, 0.0079 * (1 - Math.cos(a)))); }
+  for (let k = 1; k <= 12; k++) { const t = k / 12; prof.push(new THREE.Vector2(0.0079 + 0.0017 * t + 0.0005 * Math.sin(t * Math.PI * 2), 0.0079 + t * (L - 0.0079))); }
+  prof.push(new THREE.Vector2(0.0001, L + 0.002));
+  const fgeo = new THREE.LatheGeometry(prof, 28).rotateX(Math.PI / 2); // +Y → +Z
+  const finger = new THREE.Mesh(fgeo, mat);
+  finger.rotation.x = -0.12; // 指先がほんの少し下向き
   body.add(finger);
-  // つめ（ほんのり）
-  const nail = new THREE.Mesh(new THREE.SphereGeometry(fr * 0.78, 16, 10), nailMat);
-  nail.scale.set(1, 0.3, 1.25); nail.position.set(0, fr * 0.84, fr * 1.5);
-  body.add(nail);
-  // 手の甲（丸く平たい）＋にぎった指のふくらみ
-  const back = new THREE.Mesh(new THREE.SphereGeometry(1, 24, 16), mat);
-  back.scale.set(0.024 * S, 0.012 * S, 0.032 * S);
-  back.position.set(-0.009 * S, 0.003 * S, fl + 0.036 * S);
+  // つめ
+  const nail = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), nailMat);
+  nail.scale.set(0.0055, 0.0018, 0.0068); nail.position.set(0, 0.0068, 0.0085);
+  finger.add(nail);
+  // 手の甲（ふっくら丸い）
+  const back = new THREE.Mesh(new THREE.SphereGeometry(1, 28, 18), mat);
+  back.scale.set(0.031, 0.017, 0.034); back.position.set(0.019, -0.002, L + 0.022);
   body.add(back);
-  const knuckles = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 12), mat);
-  knuckles.scale.set(0.02 * S, 0.011 * S, 0.012 * S);
-  knuckles.position.set(-0.014 * S, -0.007 * S, fl + 0.012 * S);
-  body.add(knuckles);
+  // にぎった中指・くすり指・小指（指の背が並ぶ）
+  for (let k = 0; k < 3; k++) {
+    const f = new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), mat);
+    f.scale.set(0.0072 - k * 0.0005, 0.0082, 0.0105);
+    f.position.set(0.0135 + k * 0.0128, -0.0085, L + 0.003 + k * 0.0045);
+    body.add(f);
+  }
+  // 親指（人差し指の左側、内へ向く）
+  const thumb = new THREE.Mesh(new THREE.CapsuleGeometry(0.0072, 0.018, 6, 14), mat);
+  thumb.rotation.set(Math.PI / 2, 0.55, 0);
+  thumb.position.set(-0.011, -0.007, L + 0.006);
+  body.add(thumb);
+  // 手首（手の甲の向こうへ少し）
+  const wrist = new THREE.Mesh(new THREE.CapsuleGeometry(0.02, 0.03, 8, 18), mat);
+  wrist.rotation.x = Math.PI / 2; wrist.scale.set(1.2, 0.8, 1); wrist.position.set(0.022, -0.003, L + 0.06);
+  body.add(wrist);
   // 奥行きだけ先に書く（半透明の重なりで中が透けて見えないように）
   const depthMat = new THREE.MeshBasicMaterial({ colorWrite: false });
-  for (const m of body.children.slice()) {
+  const meshes = [];
+  body.traverse((o) => { if (o.isMesh) meshes.push(o); });
+  for (const m of meshes) {
     const d = new THREE.Mesh(m.geometry, depthMat);
     d.position.copy(m.position); d.rotation.copy(m.rotation); d.scale.copy(m.scale); d.renderOrder = 39;
-    body.add(d);
+    m.parent.add(d);
   }
   root.traverse((o) => { if (o.isMesh) { if (o.material !== depthMat) o.renderOrder = 40; o.castShadow = false; o.receiveShadow = false; } });
   root.userData.mats = [mat, nailMat];
@@ -87,10 +113,10 @@ function makeFinger() {
 
 export function createHints(engine, tweens, audio, input) {
   const scene = engine.scene;
-  const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTexture(), color: 0xffffff, blending: THREE.AdditiveBlending, transparent: true, depthTest: false, depthWrite: false, opacity: 0 }));
+  const ring = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringTexture(), color: 0xffffff, transparent: true, depthTest: false, depthWrite: false, opacity: 0, toneMapped: false }));
   ring.renderOrder = 30; ring.visible = false;
   scene.add(ring);
-  const disc = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshBasicMaterial({ map: discTexture(), blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, opacity: 0, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 }));
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshBasicMaterial({ map: discTexture(), transparent: true, depthWrite: false, opacity: 0, toneMapped: false, polygonOffset: true, polygonOffsetFactor: -2 }));
   disc.rotation.x = -Math.PI / 2; disc.renderOrder = 25; disc.visible = false;
   scene.add(disc);
   const finger = makeFinger();
@@ -191,7 +217,7 @@ export function createHints(engine, tweens, audio, input) {
       alpha = sm(0, 0.3, t) * (1 - sm(2.1, 2.6, t));
     }
     orientFinger(P, press);
-    const op = 0.45 * alpha;
+    const op = 0.6 * alpha;
     for (const m of finger.userData.mats) m.opacity = op;
     finger.visible = op > 0.005;
     if (t >= demo.dur) { demo = null; finger.visible = false; }
@@ -224,7 +250,7 @@ export function createHints(engine, tweens, audio, input) {
     targetCenter(tmp);
     ring.position.copy(tmp);
     const pulse = 0.5 + 0.5 * Math.sin(phase * (level >= 1 ? 4.2 : 3.2));
-    const goal = busy ? 0.2 : 0.42 + 0.22 * pulse + (level >= 1 ? 0.12 : 0);
+    const goal = busy ? 0.3 : 0.62 + 0.3 * pulse + (level >= 1 ? 0.08 : 0);
     ringA += (goal - ringA) * Math.min(1, dt * 6);
     ring.material.opacity = ringA;
     const rr = cur.radius * 2.0 * (1.12 + 0.08 * pulse);
@@ -234,7 +260,7 @@ export function createHints(engine, tweens, audio, input) {
       disc.position.copy(tmp); disc.position.y += 0.002;
       const dr = cur.destRadius * (1 + 0.05 * Math.sin(phase * 2.4));
       disc.scale.set(dr, dr, dr);
-      const dGoal = busy ? 0.55 : 0.28 + 0.1 * Math.sin(phase * 2.4);
+      const dGoal = busy ? 1.0 : 0.72 + 0.18 * Math.sin(phase * 2.4);
       disc.material.opacity += (dGoal - disc.material.opacity) * Math.min(1, dt * 5);
     }
   }
