@@ -577,7 +577,7 @@
       if (py < -0.82) py = -0.82 + (py + 0.82) * 0.25;
       var shade = 1 - 0.09 * Math.min(c[1], 3) + 0.14 * c[2];
       var top = smooth(0.2, 1, y);
-      cols.push(shade * lerp(0.86, 1.0, top), shade * lerp(0.95, 1.0, top), shade * lerp(0.8, 0.9, top));
+      cols.push(shade * lerp(0.82, 0.92, top), shade * lerp(0.92, 0.95, top), shade * lerp(0.74, 0.78, top));
       return [x * rr * RX, py * RY, z * rr * RX];
     }, true);
     bodyG.setAttribute('color', new T.Float32BufferAttribute(cols, 3));
@@ -629,7 +629,7 @@
     }
     var bodyTex = U.tex(512, 256, function (c, w, h) { veinDraw(c, w, h, false); });
     var bodyBump = U.tex(512, 256, function (c, w, h) { veinDraw(c, w, h, true); }, { data: true });
-    var bodyM = phys({ map: bodyTex, bumpMap: bodyBump, bumpScale: 2.5, vertexColors: true, roughness: 0.62, sheen: 0.4, sheenRoughness: 0.6, sheenColor: 0xe8f0d0, side: T.FrontSide });
+    var bodyM = phys({ map: bodyTex, bumpMap: bodyBump, bumpScale: 2.5, vertexColors: true, roughness: 0.6, envMapIntensity: 0.6, side: T.FrontSide });
     var body = mesh(bodyG, bodyM, G);
     body.position.y = -minY;
 
@@ -658,7 +658,7 @@
       c.globalAlpha = 1;
       U.speckle(c, w, h, { n: 500, size: 1.2, alpha: 0.08, seed: 3 });
     });
-    var leafM = phys({ map: leafTex, roughness: 0.6, sheen: 0.4, sheenRoughness: 0.6, sheenColor: 0xe8f0d0 });
+    var leafM = phys({ map: leafTex, roughness: 0.6, envMapIntensity: 0.6 });
     var outerDefs = [[0.3, 0.12], [2.4, 0.42], [4.4, 0.7]];
     outerDefs.forEach(function (od, n) {
       var ph0 = od[0], plen = 1.9;
@@ -766,7 +766,7 @@
         if (mode === 1) U.speckle(c, w, h, { n: 2500, size: 1.2, alpha: 0.5, seed: 9 });
         else {
           /* 粗さ: 果肉はところどころ鏡のように（きらめき） */
-          c.fillStyle = '#606060';
+          c.fillStyle = '#a8a8a8';
           c.beginPath(); c.ellipse(cx, cy, ax - 22, ay - 20, 0, PI, TAU); c.fill();
           U.speckle(c, w, h, { n: 900, size: 0.9, alpha: 0.5, light: '#303030', dark: '#808080', lightRatio: 0.5, seed: 10 });
         }
@@ -793,7 +793,7 @@
     var faceTex = U.tex(512, 256, function (c, w, h) { faceDraw(c, w, h, 0); });
     var faceBump = U.tex(512, 256, function (c, w, h) { faceDraw(c, w, h, 1); }, { data: true });
     var faceRough = U.tex(512, 256, function (c, w, h) { faceDraw(c, w, h, 2); }, { data: true });
-    var faceM = phys({ map: faceTex, bumpMap: faceBump, bumpScale: 0.3, roughnessMap: faceRough, roughness: 0.75, clearcoat: 0.25, clearcoatRoughness: 0.3, envMapIntensity: 0.7 });
+    var faceM = phys({ map: faceTex, bumpMap: faceBump, bumpScale: 0.3, roughnessMap: faceRough, roughness: 0.85, clearcoat: 0.12, clearcoatRoughness: 0.45, envMapIntensity: 0.45 });
     [-1, 1].forEach(function (sg) {
       var fg = grid(48, 14, function (u, v) {
         var ps = u * PI, x = -A * Math.cos(ps), s = Math.sin(ps), rho = v * R * s;
