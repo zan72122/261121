@@ -7,6 +7,7 @@
   var SAVE_KEY = 'gf-261121-1';
   var SAVE_SCENES = ['home1', 'shelf', 'register', 'home2'];
   var SCALES = [1.0, 0.85, 0.7, 0.6];
+  var MAX_PX = 2560 * 1000; /* 描画する画素数の上限(およそ iPhone Pro Max の 1.5 倍) */
   var FADE = 0.35;
 
   G.renderer = null;
@@ -787,6 +788,9 @@
     if (def.scene && !def.scene.environment && G.env) { def.scene.environment = G.env; }
     call(def, 'enter', from);
     call(def, 'layout');
+    /* 暗転中に、まだ見えていない物も含めて素材を組み立てておく(後で出た瞬間に引っかからない) */
+    if (def.scene && def.camera) { try { G.renderer.compile(def.scene, def.camera); } catch (e) { err('compile', e); } }
+    shDirty = true;
     fadePhase = 'in';
     fadeT = 0;
     perfSkip = 2;
@@ -922,6 +926,8 @@
     var h = Math.max(1, Math.round(window.innerHeight || document.documentElement.clientHeight || 1));
     readSafe();
     basePR = Math.min(2, window.devicePixelRatio || 1);
+    /* 大きな画面(iPad)は画素数に上限を設ける。小さな画面(iPhone)は 2 倍のまま */
+    if (w * h * basePR * basePR > MAX_PX) basePR = Math.max(1, Math.sqrt(MAX_PX / (w * h)));
     var changed = w !== G.view.w || h !== G.view.h;
     G.view.w = w; G.view.h = h;
     G.view.aspect = w / h;
@@ -948,7 +954,8 @@
     perfAcc = 0; perfN = 0;
     if (perfSkip > 0) { perfSkip--; return; }
     sinceUp++;
-    var slow = avg > (1 / 30) * 1.2, fast = avg < (1 / 30) * 0.7;
+    /* 目標はなめらかな 60fps: 平均で 45fps を切ったら下げ、55fps 以上が続けば戻す */
+    var slow = avg > 1 / 45, fast = avg < 1 / 55;
     if (slow) {
       goodWins = 0;
       if (sinceUp <= 3) goodNeed = Math.min(64, goodNeed * 2);
@@ -963,6 +970,64 @@
       }
     } else goodWins = 0;
   }
+
+  /* ───────── 影は「影を落とす物」が動いた時だけ描き直す ─────────
+     影を落とす物・光の行列や形の版を毎フレーム前回と比べ、1つでも違えば影を更新する。
+     止まっている間は前の影をそのまま使う(見た目は同じで、影の描画呼び出しが丸ごと減る)。 */
+  var shSig = [], shN = 0, shDirty = true;
+  function shPush(v) {
+    if (shSig[shN] !== v) { shSig[shN] = v; shDirty = true; }
+    shN++;
+  }
+  function shMat(m) {
+    var e = m.elements;
+    for (var i = 0; i < 16; i++) shPush(e[i]);
+  }
+  function shWalk(o) {
+    if (!o.visible) return;
+    if (o.isLight) {
+      if (o.castShadow && o.shadow) {
+        var sh = o.shadow, sc = sh.camera;
+        shPush(o.id); shMat(o.matrixWorld);
+        if (o.target) shMat(o.target.matrixWorld);
+        shPush(o.intensity > 0 ? 1 : 0);
+        shPush(sh.mapSize.x); shPush(sh.mapSize.y); shPush(sh.map ? sh.map.texture.id : -1);
+        shPush(sh.bias); shPush(sh.normalBias); shPush(sh.radius);
+        if (sc) {
+          shPush(sc.near); shPush(sc.far);
+          if (sc.isOrthographicCamera) { shPush(sc.left); shPush(sc.right); shPush(sc.top); shPush(sc.bottom); shPush(sc.zoom); }
+          else { shPush(sc.fov); shPush(sc.aspect); }
+        }
+      }
+    } else if (o.castShadow && (o.isMesh || o.isLine || o.isPoints)) {
+      var g = o.geometry, mt = o.material;
+      shPush(o.id); shMat(o.matrixWorld);
+      if (g) {
+        shPush(g.id);
+        var pa = g.attributes && g.attributes.position;
+        shPush(pa ? pa.version : -1);
+        shPush(g.drawRange.start); shPush(g.drawRange.count);
+      }
+      shPush(mt ? (mt.id === undefined ? -1 : mt.id) : -1);
+      shPush(mt && mt.visible !== false ? 1 : 0);
+      if (o.count !== undefined) shPush(o.count);
+    }
+    var ch = o.children;
+    for (var i = 0; i < ch.length; i++) shWalk(ch[i]);
+  }
+  function renderScene(scene, cam) {
+    var r = G.renderer;
+    if (scene.matrixWorldAutoUpdate !== false) scene.updateMatrixWorld();
+    shN = 0;
+    shWalk(scene);
+    if (shSig.length !== shN) { shSig.length = shN; shDirty = true; }
+    if (shDirty) { r.shadowMap.needsUpdate = true; shDirty = false; }
+    var au = scene.matrixWorldAutoUpdate;
+    scene.matrixWorldAutoUpdate = false; /* 上で更新済み */
+    try { r.render(scene, cam); }
+    finally { scene.matrixWorldAutoUpdate = au; }
+  }
+  G.shadowsDirty = function () { shDirty = true; };
 
   /* ───────── ループ ───────── */
   var raf = 0, last = 0, running = false;
@@ -986,7 +1051,7 @@
     stepPuffs(dt);
     def = curDef();
     try {
-      if (def && def.scene && def.camera) G.renderer.render(def.scene, def.camera);
+      if (def && def.scene && def.camera) renderScene(def.scene, def.camera);
       else G.renderer.clear();
     } catch (e2) { err('render', e2); }
     void ts;
@@ -1070,6 +1135,7 @@
       r.toneMappingExposure = 0.78;
       r.shadowMap.enabled = true;
       r.shadowMap.type = T.PCFShadowMap;
+      r.shadowMap.autoUpdate = false; /* renderScene が必要な時だけ needsUpdate を立てる */
       r.setClearColor(0x2a1d17, 1);
     } catch (e) { err('renderer setup', e); }
 
