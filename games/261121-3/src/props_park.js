@@ -480,6 +480,7 @@ function makeSwayMesh(geo, count, U, grad, matOpts) {
   const mat = patchSway(new THREE.MeshStandardMaterial(Object.assign({ color: 0xffffff, roughness: 0.62, side: THREE.DoubleSide }, matOpts)), U, grad);
   const mesh = new THREE.InstancedMesh(geo, mat, count);
   mesh.customDepthMaterial = patchSway(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking }), U, false);
+  mesh.userData.shadowAnimated = true; // 影も頂点シェーダで揺れる → 影マップは毎フレーム描き直す（engine の影キャッシュ）
   mesh.frustumCulled = false;
   mesh.castShadow = true; mesh.receiveShadow = true;
   return mesh;

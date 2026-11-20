@@ -83,21 +83,34 @@ export function createEngine() {
   }
 
   // ---- サイズ・動的解像度 ----
+  // 描画ピクセル数に上限（PIXEL_BUDGET）を設ける: iPad の大画面で DPR 2 のまま MSAA＋物理マテリアルを
+  // 塗ると fill が足りないため。iPhone（390×844 前後）は DPR 2 のまま収まる。
+  const PIXEL_BUDGET = 2.5e6;
   const size = { w: 1, h: 1 };
-  const maxPR = Math.min(window.devicePixelRatio || 1, 2);
-  const minPR = Math.min(maxPR, 0.6);
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  let maxPR = dpr, minPR = Math.min(dpr, 0.6);
   let pr = maxPR;
+  let ceilPR = Infinity;      // これ以上だと遅かった解像度（サイズが変わるまで覚えておく）
+  let lockDown = false;       // 解像度を下げても速くならなかった（30fps 固定の省電力モード等）→ もう下げない
   const quality = { low: false, particleScale: 1 };
   function measure() {
     const w = Math.max(1, canvas.clientWidth || window.innerWidth);
     const h = Math.max(1, canvas.clientHeight || window.innerHeight);
     return [w, h];
   }
+  function budgetPR(w, h) {
+    return Math.max(Math.min(dpr, 1), Math.min(dpr, Math.sqrt(PIXEL_BUDGET / (w * h))));
+  }
   function applySize(force) {
     const [w, h] = measure();
     if (!force && w === size.w && h === size.h) return false;
+    const changed = w !== size.w || h !== size.h;
     size.w = w; size.h = h;
     readSafe();
+    maxPR = budgetPR(w, h);
+    minPR = Math.min(maxPR, 0.6);
+    if (changed) { ceilPR = Infinity; lockDown = false; pr = maxPR; resetPerf(); }
+    pr = Math.min(Math.max(pr, minPR), maxPR);
     renderer.setPixelRatio(pr);
     renderer.setSize(w, h, false);
     camera.aspect = w / h;
@@ -106,6 +119,7 @@ export function createEngine() {
     return true;
   }
   function setPR(v) {
+    if (Math.abs(v - pr) < 1e-3) return;
     pr = v;
     renderer.setPixelRatio(pr);
     renderer.setSize(size.w, size.h, false);
@@ -125,25 +139,92 @@ export function createEngine() {
         }
       }
     });
+    shadowDirty = true;
   }
-  let avgMs = 16, slowT = 0, fastT = 0;
+  // 動的解像度: 60fps を目標に、遅ければ少しずつ下げ、速ければ少しずつ戻す。
+  // 下げても速くならない（＝描画の重さが原因ではない）ときは元に戻して下げるのをやめる。
+  let avgMs = 16, slowT = 0, fastT = 0, settleT = 0, trial = null, calmT = 0;
+  function resetPerf() { avgMs = 16; slowT = fastT = 0; settleT = 0.5; trial = null; }
   function perf(rawDt) {
     avgMs += (rawDt * 1000 - avgMs) * 0.08;
-    if (avgMs > 36) slowT += rawDt; else slowT = 0;
-    if (avgMs < 22) fastT += rawDt; else fastT = 0;
-    if (slowT > 1.5) {
+    if (settleT > 0) { settleT -= rawDt; return; }
+    if (trial) {
+      // 直前に下げた効果を確かめる
+      if (avgMs < trial.ms * 0.9) { trial = null; }
+      else if ((trial.t += rawDt) > 1.2) {
+        const back = trial.pr; trial = null;
+        setPR(back); lockDown = true; settleT = 0.5;
+        return;
+      } else return;
+    }
+    if (avgMs > 21) { slowT += rawDt; calmT = 0; } else { slowT = 0; calmT += rawDt; }
+    if (calmT > 15) ceilPR = Infinity; // 一時的な重さで下げた上限は、しばらく快適なら忘れる
+    if (avgMs < 17.5) fastT += rawDt; else fastT = 0;
+    if (slowT > 1.0) {
       slowT = 0;
-      if (pr > minPR + 1e-3) { setPR(Math.max(minPR, pr * 0.85)); avgMs = 30; }
-      else if (!quality.low) {
+      if (lockDown) return;
+      ceilPR = Math.min(ceilPR, pr);
+      if (pr > minPR + 1e-3) {
+        trial = { pr, ms: avgMs, t: 0 };
+        setPR(Math.max(minPR, pr * 0.85)); settleT = 0.3;
+      } else if (!quality.low) {
         quality.low = true; quality.particleScale = 0.5;
         applyQuality(scene);
         for (const f of qualityFns.slice()) { try { f(quality); } catch (e) { console.error(e); } }
       }
     }
-    if (fastT > 4) {
+    if (fastT > 3) {
       fastT = 0;
-      if (pr < maxPR) { setPR(maxPR); avgMs = 20; }
+      const up = Math.min(maxPR, pr * 1.12, ceilPR * 0.96);
+      if (up > pr + 0.02) { setPR(up); settleT = 0.5; }
     }
+  }
+
+  // ---- 影マップのキャッシュ ----
+  // 影を落とす物・ライトが1つも動いていないフレームでは影マップを描き直さない（台所の静止中など）。
+  // 頂点シェーダで揺れる物（草など）は userData.shadowAnimated = true で毎フレーム描き直す。
+  renderer.shadowMap.autoUpdate = false;
+  scene.matrixWorldAutoUpdate = false; // 行列は毎フレーム render 前に1回だけ更新する（下の frame）
+  let shadowDirty = true;
+  let sig = new Float64Array(256), sigLen = 0, sigNext = new Float64Array(256), sigN = 0, sigAnimated = false;
+  function sigPush(v) {
+    if (sigN >= sigNext.length) { const a = new Float64Array(sigNext.length * 2); a.set(sigNext); sigNext = a; }
+    sigNext[sigN++] = v;
+  }
+  function sigMatrix(m) { const e = m.elements; for (let i = 0; i < 16; i++) sigPush(e[i]); }
+  function sigVisit(o) {
+    if (o.isLight && o.castShadow && o.shadow) {
+      sigPush(o.id); sigMatrix(o.matrixWorld);
+      if (o.target) sigMatrix(o.target.matrixWorld);
+      const c = o.shadow.camera;
+      sigPush(c.left || 0); sigPush(c.right || 0); sigPush(c.top || 0); sigPush(c.bottom || 0);
+      sigPush(c.near); sigPush(c.far); sigPush(o.angle || 0); sigPush(o.distance || 0);
+      sigPush(o.shadow.mapSize.x); sigPush(o.shadow.bias); sigPush(o.shadow.normalBias);
+      return;
+    }
+    if (!o.castShadow || !(o.isMesh || o.isPoints || o.isLine)) return;
+    if (o.userData.shadowAnimated) sigAnimated = true;
+    sigPush(o.id); sigMatrix(o.matrixWorld);
+    const g = o.geometry;
+    if (g) {
+      sigPush(g.id);
+      const a = g.attributes.position; if (a) sigPush(a.version);
+      sigPush(g.drawRange.start); sigPush(g.drawRange.count);
+      if (g.index) sigPush(g.index.version);
+    }
+    if (o.isInstancedMesh) { sigPush(o.count); sigPush(o.instanceMatrix.version); }
+    const m = o.material;
+    if (Array.isArray(m)) { for (const x of m) { sigPush(x.id); sigPush(x.version); } }
+    else if (m) { sigPush(m.id); sigPush(m.version); }
+  }
+  function shadowNeedsUpdate() {
+    sigN = 0; sigAnimated = false;
+    scene.traverseVisible(sigVisit);
+    let same = !shadowDirty && !sigAnimated && sigN === sigLen;
+    if (same) for (let i = 0; i < sigN; i++) if (sig[i] !== sigNext[i]) { same = false; break; }
+    const t = sig; sig = sigNext; sigNext = t; sigLen = sigN;
+    shadowDirty = false;
+    return !same;
   }
 
   // ---- ショット ----
@@ -243,11 +324,18 @@ export function createEngine() {
   // ---- フェード ----
   let fadeA = parseFloat(fadeEl ? getComputedStyle(fadeEl).opacity : '0') || 0;
   let fadeJob = null;
+  // 透明のときは隠す（全画面の不透明度0レイヤーを WebGL の上に重ねて合成させない）
+  function setFadeEl(a) {
+    if (!fadeEl) return;
+    fadeEl.style.opacity = a.toFixed(3);
+    const vis = a > 0.001 ? 'visible' : 'hidden';
+    if (fadeEl.style.visibility !== vis) fadeEl.style.visibility = vis;
+  }
   function fade(alpha, dur = 0.45, color = '#fff') {
     if (fadeEl) fadeEl.style.background = color;
     if (fadeJob) { fadeJob.resolve(); fadeJob = null; }
     return new Promise((resolve) => {
-      if (!(dur > 0)) { fadeA = alpha; if (fadeEl) fadeEl.style.opacity = String(alpha); resolve(); return; }
+      if (!(dur > 0)) { fadeA = alpha; setFadeEl(alpha); resolve(); return; }
       fadeJob = { from: fadeA, to: alpha, t: 0, dur, resolve };
     });
   }
@@ -256,7 +344,7 @@ export function createEngine() {
     fadeJob.t += dt;
     const k = Math.min(1, fadeJob.t / fadeJob.dur);
     fadeA = fadeJob.from + (fadeJob.to - fadeJob.from) * k;
-    if (fadeEl) fadeEl.style.opacity = fadeA.toFixed(3);
+    setFadeEl(fadeA);
     if (k >= 1) { const j = fadeJob; fadeJob = null; j.resolve(); }
   }
 
@@ -314,8 +402,12 @@ export function createEngine() {
         if (n <= 3) console.error(e);
       }
     }
-    if (!lost) {
-      try { renderer.render(scene, camera); } catch (e) { if ((errCount.get(frame) || 0) < 3) { errCount.set(frame, (errCount.get(frame) || 0) + 1); console.error(e); } }
+    if (!lost && fadeA < 0.999) { // 真っ白のフェード中は画面が見えないので描かない
+      try {
+        scene.updateMatrixWorld();
+        if (renderer.shadowMap.enabled && shadowNeedsUpdate()) renderer.shadowMap.needsUpdate = true;
+        renderer.render(scene, camera);
+      } catch (e) { if ((errCount.get(frame) || 0) < 3) { errCount.set(frame, (errCount.get(frame) || 0) + 1); console.error(e); } }
     }
   }
   function start() {
@@ -336,7 +428,7 @@ export function createEngine() {
   }
   function resume() {
     if (!paused || document.hidden) return;
-    paused = false; slowT = fastT = 0;
+    paused = false; resetPerf(); shadowDirty = true;
     applySize(true);
     start();
     for (const f of resumes.slice()) { try { f(); } catch (e) { console.error(e); } }
@@ -346,7 +438,7 @@ export function createEngine() {
   window.addEventListener('pageshow', () => { if (!document.hidden) resume(); });
 
   canvas.addEventListener('webglcontextlost', (e) => { e.preventDefault(); lost = true; }, false);
-  canvas.addEventListener('webglcontextrestored', () => { lost = false; applySize(true); }, false);
+  canvas.addEventListener('webglcontextrestored', () => { lost = false; shadowDirty = true; applySize(true); }, false);
 
   const onResize = () => { applySize(true); };
   window.addEventListener('resize', onResize);
