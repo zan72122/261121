@@ -236,7 +236,7 @@
     return t;
   }
   function getGlowTex() {
-    if (!glowTex) glowTex = radialTex([[0, 'rgba(255,255,255,0.55)'], [0.3, 'rgba(255,255,255,0.42)'], [0.55, 'rgba(255,255,255,0.16)'], [0.8, 'rgba(255,255,255,0.04)'], [1, 'rgba(255,255,255,0)']]);
+    if (!glowTex) glowTex = radialTex([[0, 'rgba(255,255,255,0.03)'], [0.4, 'rgba(255,255,255,0.14)'], [0.62, 'rgba(255,255,255,0.24)'], [0.8, 'rgba(255,255,255,0.08)'], [1, 'rgba(255,255,255,0)']]);
     return glowTex;
   }
   function getDotTex() {
@@ -274,7 +274,7 @@
     s.position.copy(p);
     var k = rad * 2 * (1 + 0.07 * pulse) * (0.85 + 0.15 * Math.min(this.cur, 1.5));
     s.scale.set(k, k, 1);
-    s.material.opacity = Math.min(1, this.cur * (0.5 + 0.14 * pulse));
+    s.material.opacity = Math.min(1, this.cur * (0.75 + 0.25 * pulse));
     s.visible = true;
   };
   Glow.prototype.remove = function () {

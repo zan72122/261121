@@ -130,7 +130,7 @@
       // 空色の窓
       var y0 = h * 0.17, y1 = h * 0.72;
       var g = ctx.createLinearGradient(0, y0, 0, y1);
-      g.addColorStop(0, '#dcecf9'); g.addColorStop(1, SKY);
+      g.addColorStop(0, '#7fb0e2'); g.addColorStop(1, '#3f7fca');
       ctx.fillStyle = g; rrect(ctx, w * 0.09, y0, w * 0.82, y1 - y0, 26); ctx.fill();
       // 注がれるミルク
       ctx.fillStyle = '#ffffff';
@@ -256,24 +256,25 @@
     }
     var shell = [V2(0, 0.0015), V2(R - 0.012, 0.0005), V2(R - 0.006, 0)], liq = [V2(0, 0.003), V2(R - 0.013, 0.002)];
     var y;
-    for (y = 0.0; y <= Y_TOP + 1e-6; y += 0.003) shell.push(V2(rad(y), y));
+    function stepAt(y) { return y < 0.006 ? 0.0015 : y < Y_SH - 0.004 ? 0.008 : 0.0035; }
+    for (y = 0.0; y <= Y_TOP + 1e-6; y += stepAt(y)) shell.push(V2(rad(y), y));
     shell.push(V2(NR - 0.0018, Y_TOP)); shell.push(V2(NR - 0.0018, Y_TOP - 0.004));
     var LY = 0.176;
-    for (y = 0.003; y < LY; y += 0.003) liq.push(V2(rad(y) - 0.0014, y));
+    for (y = 0.003; y < LY; y += stepAt(y)) liq.push(V2(rad(y) - 0.0014, y));
     liq.push(V2(rad(LY) - 0.0014, LY)); liq.push(V2((rad(LY) - 0.0014) * 0.6, LY + 0.0004)); liq.push(V2(0, LY + 0.0004));
 
     var grp = new T.Group();
     var juiceT = U.tex(128, 256, function (ctx, w, h) {
       var g = ctx.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, '#f6a43a'); g.addColorStop(1, '#e27812');
+      g.addColorStop(0, '#f39522'); g.addColorStop(1, '#d9650a');
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
       U.speckle(ctx, w, h, { n: 500, size: 1.3, alpha: 0.08, light: '#ffd27a', dark: '#b85a08', seed: 12 });
     });
     var mLiq = phys({ map: juiceT, roughness: 0.18, clearcoat: 0.6, clearcoatRoughness: 0.1, metalness: 0 });
-    var lg = lathe(liq, 48, 0, 0.2);
+    var lg = lathe(liq, 36, 0, 0.2);
     grp.add(mesh(lg, mLiq));
     var sg = lathe(shell, 48);
-    var mShell = clearPlastic(0.2, 0xf4f8fa);
+    var mShell = clearPlastic(0.13, 0xf4f8fa);
     var sm = mesh(sg, mShell); sm.renderOrder = 2; grp.add(sm);
     // 首のリング
     var ring = lathe([V2(NR - 0.0005, 0.1905), V2(0.0178, 0.191), V2(0.0181, 0.1925), V2(0.0178, 0.194), V2(NR - 0.0005, 0.1945)], 48);
@@ -357,7 +358,8 @@
       ctx.fillStyle = '#1a539f'; ctx.fillRect(0, h * 0.86, w, h * 0.01);
       // 正面：薄い青の丸の上に白いひとすくい
       var cx = w * 0.5, cy = h * 0.54;
-      circle(ctx, cx, cy, h * 0.24, '#cfe3f5');
+      circle(ctx, cx, cy, h * 0.25, '#5e9bdc');
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(cx, cy, h * 0.25, 0, 2 * PI); ctx.stroke();
       ctx.fillStyle = '#ffffff';
       ctx.beginPath();
       ctx.moveTo(cx - 52, cy + 30);
@@ -453,7 +455,7 @@
     cus.push(V2(cr(TOP) - IN - 0.002, TOP + 0.0008)); cus.push(V2(0, TOP + 0.001));
     var cusT = U.tex(256, 128, function (ctx, w, h) {
       var g = ctx.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, '#f6dc8e'); g.addColorStop(0.85, '#f1cc6c'); g.addColorStop(1, '#b77a2c');
+      g.addColorStop(0, '#f0c44a'); g.addColorStop(0.85, '#e9b43a'); g.addColorStop(1, '#a8661e');
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
       var r = U.rng(18);
       for (var j = 0; j < 60; j++) { ctx.globalAlpha = 0.25; circle(ctx, r() * w, r() * h * 0.85, 0.8 + r() * 1.6, '#e2b553'); }
@@ -486,6 +488,7 @@
     var FR = RT + 0.0028, FY = CH + 0.0016;
     var foilM = std({ map: foilT, metalness: 0.75, roughness: 0.32 });
     var foil = mesh(new T.CylinderGeometry(FR, FR, 0.0005, 64), foilM, 0, FY + 0.00025, 0);
+    foil.rotation.y = PI / 2;
     grp.add(foil);
     // つまみ（右前）
     var tab = new T.Shape();
@@ -503,20 +506,20 @@
     var grp = new T.Group();
     // たまご（とがった方が下）
     var EL = 0.058, ER = 0.0213, ept = [];
-    for (var i = 0; i <= 14; i++) {
-      var t = (i / 14) * PI;
+    for (var i = 0; i <= 12; i++) {
+      var t = (i / 12) * PI;
       var yy = EL * 0.5 * (1 - Math.cos(t));
       var rr = ER * Math.sin(t) * (1 - 0.1 * Math.cos(t)) * 1.0;
-      ept.push(V2(Math.max(rr, 0.00001 * (i > 0 && i < 14 ? 1 : 0)), yy));
+      ept.push(V2(Math.max(rr, 0.00001 * (i > 0 && i < 12 ? 1 : 0)), yy));
     }
     var eg = lathe(ept, 32);
     eg.computeVertexNormals(); fixSeam(eg, 32, ept.length);
     var eT = U.tex(256, 256, function (ctx, w, h) {
-      ctx.fillStyle = '#f2ebde'; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#eadcc6'; ctx.fillRect(0, 0, w, h);
       U.speckle(ctx, w, h, { n: 1500, size: 1.2, alpha: 0.06, light: '#ffffff', dark: '#b8a588', seed: 23 });
       U.speckle(ctx, w, h, { n: 60, size: 2.5, alpha: 0.05, dark: '#a08060', lightRatio: 0, seed: 24 });
     });
-    var mE = [std({ map: eT, roughness: 0.68, color: 0xffffff }), std({ map: eT, roughness: 0.7, color: 0xf8efe2 }), std({ map: eT, roughness: 0.68, color: 0xfffaf2 })];
+    var mE = [std({ map: eT, roughness: 0.72, color: 0xf6f2ec }), std({ map: eT, roughness: 0.74, color: 0xefe4d4 }), std({ map: eT, roughness: 0.72, color: 0xfaf6f0 })];
     var cells = [];
     for (var cx = -1; cx <= 1; cx++) for (var cz = -1; cz <= 1; cz += 2) cells.push([cx * PX, cz * PZ / 2]);
     var rnd = U.rng(25);
@@ -525,7 +528,7 @@
       e.rotation.y = rnd() * 6.28; e.rotation.z = (rnd() - 0.5) * 0.05; e.rotation.x = (rnd() - 0.5) * 0.05;
       grp.add(e);
     });
-    var mP = clearPlastic(0.26, 0xf6fbff);
+    var mP = clearPlastic(0.2, 0xf6fbff);
     // 下のくぼみ
     var cupG = lathe([V2(0, 0.0012), V2(0.011, 0.0012), V2(0.0145, 0.0022), V2(0.0185, 0.008), V2(0.021, 0.017), V2(0.0222, 0.026), V2(CRr, FY)], 32);
     // 上のふくらみ
@@ -552,15 +555,15 @@
       ctx.fillStyle = '#fbf8f1'; ctx.fillRect(0, 0, w, h);
       ctx.fillStyle = '#d9542a'; ctx.fillRect(0, 0, w, h * 0.2); ctx.fillRect(0, h * 0.8, w, h * 0.2);
       ctx.fillStyle = '#f1b83a'; ctx.fillRect(0, h * 0.2, w, h * 0.06); ctx.fillRect(0, h * 0.74, w, h * 0.06);
-      // 目玉焼きの絵
+      // 黄色の窓に目玉焼きの絵
+      ctx.fillStyle = '#f4c64a'; rrect(ctx, 96, h * 0.22, 210, h * 0.56, 8); ctx.fill();
       ctx.fillStyle = '#ffffff';
-      ctx.beginPath(); ctx.ellipse(150, h / 2, 40, 17, 0.1, 0, 2 * PI); ctx.fill();
-      ctx.strokeStyle = '#e6dccb'; ctx.lineWidth = 1.5; ctx.stroke();
-      circle(ctx, 154, h / 2, 10, '#f3a221'); circle(ctx, 151, h / 2 - 3, 3, '#fbd479');
+      ctx.beginPath(); ctx.ellipse(170, h / 2, 46, 15, 0.05, 0, 2 * PI); ctx.fill();
+      circle(ctx, 176, h / 2, 10, '#ee8a12'); circle(ctx, 173, h / 2 - 3, 3, '#fbd479');
       // たまご2つの絵
-      ctx.fillStyle = '#efe2cc'; ctx.beginPath(); ctx.ellipse(240, h / 2 + 1, 10, 13, 0, 0, 2 * PI); ctx.fill();
-      ctx.fillStyle = '#e7d4b4'; ctx.beginPath(); ctx.ellipse(262, h / 2 + 3, 10, 13, 0.2, 0, 2 * PI); ctx.fill();
-      ctx.fillStyle = '#4c8e3a'; ctx.fillRect(40, h * 0.42, 60, h * 0.16);
+      ctx.fillStyle = '#fbf3e4'; ctx.beginPath(); ctx.ellipse(250, h / 2, 11, 14, 0, 0, 2 * PI); ctx.fill();
+      ctx.fillStyle = '#efdcbc'; ctx.beginPath(); ctx.ellipse(276, h / 2 + 1, 11, 14, 0.2, 0, 2 * PI); ctx.fill();
+      ctx.fillStyle = '#4c8e3a'; ctx.fillRect(28, h * 0.4, 52, h * 0.2);
       barcode(ctx, 360, h * 0.27, 110, h * 0.46, 71);
     });
     var lab = mesh(new T.BoxGeometry(0.128, 0.017, 0.0004), [
@@ -585,7 +588,7 @@
     }
     function pasteBg(ctx, w, h, seed) {
       var g = ctx.createLinearGradient(0, 0, w, h);
-      g.addColorStop(0, '#f2d887'); g.addColorStop(1, '#ebcb72');
+      g.addColorStop(0, '#efcd62'); g.addColorStop(1, '#e6bf52');
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
       U.speckle(ctx, w, h, { n: 1600, size: 1.4, alpha: 0.06, light: '#fff3c8', dark: '#c79a3a', seed: seed });
       // 小さなすじ穴
@@ -681,7 +684,7 @@
     // 外周の皮
     var rindT = U.tex(256, 128, function (ctx, w, h) {
       var g = ctx.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, '#d9a94a'); g.addColorStop(0.5, '#e2b558'); g.addColorStop(1, '#d4a043');
+      g.addColorStop(0, '#cf9533'); g.addColorStop(0.5, '#d9a440'); g.addColorStop(1, '#c88b2c');
       ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
       U.speckle(ctx, w, h, { n: 900, size: 1.5, alpha: 0.08, light: '#f3d384', dark: '#9c6a20', seed: 95 });
       ctx.strokeStyle = 'rgba(150,100,30,0.18)'; ctx.lineWidth = 1;
@@ -691,7 +694,7 @@
     inner.add(mesh(rind, std({ map: rindT, roughness: 0.5 }), 0, H / 2, 0));
     // 穴の内側（へこんだ球面）
     var bowlG = new T.SphereGeometry(1, 18, 7, 0, 2 * PI, 0, PI / 2);
-    var bowlM = std({ color: 0xe6c065, roughness: 0.5, side: T.BackSide });
+    var bowlM = std({ color: 0xd9ad48, roughness: 0.5, side: T.BackSide });
     var up = new T.Vector3(0, 1, 0);
     bowls.forEach(function (bw) {
       var m = mesh(bowlG, bowlM, bw.p.x, bw.p.y, bw.p.z);

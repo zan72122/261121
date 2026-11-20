@@ -83,7 +83,7 @@
 
   /* 細い葉（へた用）: 長さ1、根元が原点、+X へ伸び、先が下へ反る */
   function leafGeom(len, wid, droop, lift) {
-    return grid(6, 2, function (u, v) {
+    return grid(5, 2, function (u, v) {
       var s = u, w = wid * Math.pow(Math.sin(PI * Math.min(1, s * 0.92 + 0.06)), 0.8) * (1 - s * 0.55);
       var c = (v - 0.5) * 2;
       var x = len * s;
@@ -138,7 +138,7 @@
     var berryG = [], v;
     for (v = 0; v < 3; v++) {
       (function (seed) {
-        berryG.push(lathe(32, 11, prof, function (x, y, z, u, vv, rr) {
+        berryG.push(lathe(32, 10, prof, function (x, y, z, u, vv, rr) {
           var nx = x / (R), nz = z / R;
           var f = 1 + 0.07 * fbm(nx * 1.3 + seed * 3, y / L * 1.6, nz * 1.3) + 0.025 * Math.cos(u * TAU * 3 + seed);
           var flat = 1 + (seed - 1) * 0.08;
@@ -375,7 +375,7 @@
         var y0 = r() * h * 0.6, len = h * (0.15 + 0.5 * r());
         c.globalAlpha = 0.15 + 0.3 * r();
         var k = r();
-        c.strokeStyle = k < 0.45 ? '#7a0c14' : k < 0.8 ? '#b8262c' : '#c9a04a';
+        c.strokeStyle = k < 0.5 ? '#7a0c14' : k < 0.93 ? '#b8262c' : '#c0904a';
         c.lineWidth = 0.8 + 2 * r();
         c.beginPath(); c.moveTo(x, y0); c.bezierCurveTo(x + (r() - 0.5) * 8, y0 + len * 0.3, x + (r() - 0.5) * 8, y0 + len * 0.6, x + (r() - 0.5) * 6, y0 + len); c.stroke();
       }
@@ -389,8 +389,8 @@
       gb.addColorStop(0, 'rgba(170,150,70,0.9)'); gb.addColorStop(1, 'rgba(170,150,70,0)');
       c.fillStyle = gb; c.fillRect(0, h * 0.9, w, h * 0.1);
       /* 点々（皮目） */
-      for (i = 0; i < 1400; i++) {
-        c.globalAlpha = 0.35 + 0.4 * r();
+      for (i = 0; i < 1100; i++) {
+        c.globalAlpha = 0.2 + 0.35 * r();
         c.fillStyle = r() < 0.7 ? '#e8d9a8' : '#f4ecd0';
         c.beginPath(); c.ellipse(r() * w, r() * h, 0.6 + r() * 0.9, 0.9 + r() * 1.2, 0, 0, TAU); c.fill();
       }
@@ -418,8 +418,8 @@
     var tex = U.tex(256, 512, function (c, w, h) {
       /* v=0 が先（キャンバス下）、v=1 が肩（上） */
       var g = c.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, '#8c6a2a'); g.addColorStop(0.025, '#c86a20'); g.addColorStop(0.1, '#e07422');
-      g.addColorStop(0.6, '#e27a26'); g.addColorStop(0.95, '#d86a1c'); g.addColorStop(1, '#b86418');
+      g.addColorStop(0, '#6e6a2a'); g.addColorStop(0.03, '#b8541a'); g.addColorStop(0.1, '#d45a14');
+      g.addColorStop(0.6, '#d8601a'); g.addColorStop(0.95, '#cc5614'); g.addColorStop(1, '#c05a14');
       c.fillStyle = g; c.fillRect(0, 0, w, h);
       blotch(c, w, h, 40, 3, '#c25814', 0.3, 30);
       blotch(c, w, h, 30, 4, '#f09040', 0.2, 30);
@@ -459,9 +459,9 @@
       return r;
     }
     var defs = [
-      { L: 0.172, R: 0.0132, z: -0.024, y: 0, yaw: -0.11, bend: 0.006, seed: 1 },
-      { L: 0.165, R: 0.0125, z: 0.024, y: 0, yaw: 0.13, bend: -0.007, seed: 2 },
-      { L: 0.168, R: 0.0128, z: 0.0005, y: 0.0098, yaw: 0.025, bend: 0.004, seed: 3 }
+      { L: 0.172, R: 0.0138, z: -0.026, y: 0, yaw: -0.17, bend: 0.006, seed: 1 },
+      { L: 0.165, R: 0.0132, z: 0.026, y: 0, yaw: 0.19, bend: -0.007, seed: 2 },
+      { L: 0.168, R: 0.0134, z: 0.0005, y: 0.0092, yaw: 0.025, bend: 0.004, seed: 3 }
     ];
     var X0 = -0.08, stems = [], tapePts = [], XT = 0.032;
     var baseStem = new T.CylinderGeometry(0.0009, 0.0012, 1, 6, 1);
@@ -479,7 +479,8 @@
       });
       /* 寝かせる: 太い方が -X、先が +X */
       g.rotateZ(PI / 2);       /* (x,y) -> (-y, x): 肩が -L */
-      g.translate(d.L, 0, 0);  /* 肩が x=0, 先が x=+L */
+      g.computeBoundingBox();
+      g.translate(-g.boundingBox.min.x - 0.0015, 0, 0);  /* 肩が x≒0, 先が x=+L */
       var m = mesh(g, carM);
       var piv = new T.Group();
       piv.add(m);
@@ -502,7 +503,7 @@
       }
       /* テープ位置での断面の円 */
       var tt = 1 - XT / d.L;
-      tapePts.push([d.z + Math.sin(-d.yaw) * XT * 0 + Math.sin(d.yaw) * -XT, d.y + d.R - Math.sin(tilt) * XT * 0, radius(tt, d.R) * 1.0]);
+      tapePts.push([d.z - Math.sin(d.yaw) * XT, d.y + d.R - Math.sin(tilt) * XT, radius(tt, d.R)]);
     });
     var sm = merge(stems);
     mesh(sm, stemM, G);
@@ -539,7 +540,7 @@
   /* ═════════ 5. キャベツ ═════════ */
   Items.define('cabbage', { tall: false, sound: 'thud', heavy: 1 }, function () {
     var G = new T.Group();
-    var RX = 0.0835, RY = 0.0745;
+    var RX = 0.0795, RY = 0.0745;
     var r0 = U.rng(55), leaves = [], i;
     for (i = 0; i < 5; i++) leaves.push({ th: 0.35 + 0.25 * r0(), ph: i / 5 * TAU + r0() * 0.6, a: 0.75 + 0.25 * r0(), s: r0() * 10 });
     for (i = 0; i < 6; i++) leaves.push({ th: 1.35 + 0.35 * r0(), ph: i / 6 * TAU + 0.4 + r0() * 0.5, a: 1.0 + 0.25 * r0(), s: r0() * 10 });
@@ -574,7 +575,7 @@
       var c = cab(x, y, z), rr = c[0];
       var py = y * rr;
       if (py < -0.82) py = -0.82 + (py + 0.82) * 0.25;
-      var shade = 1 - 0.05 * Math.min(c[1], 3) + 0.12 * c[2];
+      var shade = 1 - 0.09 * Math.min(c[1], 3) + 0.14 * c[2];
       var top = smooth(0.2, 1, y);
       cols.push(shade * lerp(0.86, 1.0, top), shade * lerp(0.95, 1.0, top), shade * lerp(0.8, 0.9, top));
       return [x * rr * RX, py * RY, z * rr * RX];
@@ -588,10 +589,10 @@
       if (bump) { c.fillStyle = '#7a7a7a'; c.fillRect(0, 0, w, h); }
       else {
         var g = c.createLinearGradient(0, 0, 0, h);
-        g.addColorStop(0, '#d9e6a6'); g.addColorStop(0.35, '#b9d283'); g.addColorStop(0.75, '#9cbf68'); g.addColorStop(1, '#c8d898');
+        g.addColorStop(0, '#b4cf7c'); g.addColorStop(0.35, '#98bd5c'); g.addColorStop(0.75, '#7ea84a'); g.addColorStop(1, '#a8c470');
         c.fillStyle = g; c.fillRect(0, 0, w, h);
-        blotch(c, w, h, 50, 9, '#7fa84e', 0.35, 40);
-        blotch(c, w, h, 40, 10, '#e2ebb4', 0.3, 30);
+        blotch(c, w, h, 50, 9, '#5e8a34', 0.35, 40);
+        blotch(c, w, h, 40, 10, '#c8dc90', 0.3, 30);
       }
       /* 下から扇状に広がる太い葉脈 */
       var N = 9;
@@ -603,7 +604,7 @@
           ang += (r() - 0.5) * 0.25;
           var lw = (bump ? 1.2 : 1) * Math.max(1.2, 13 * Math.pow(1 - t, 1.3));
           c.globalAlpha = bump ? 1 : 0.85 - 0.4 * t;
-          c.strokeStyle = bump ? '#f0f0f0' : '#eef3d8';
+          c.strokeStyle = bump ? '#f0f0f0' : '#e2ecc0';
           c.lineWidth = lw; c.lineCap = 'round';
           c.beginPath(); c.moveTo(xs, ys); c.lineTo(nx, ny); c.stroke();
           if (k % 3 === 1 && t < 0.85) {
@@ -635,7 +636,7 @@
     /* 外葉: 少し浮いた曲面を3枚、ふちが外へ反る */
     var leafTex = U.tex(256, 256, function (c, w, h) {
       var g = c.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, '#8fb35a'); g.addColorStop(0.6, '#a6c470'); g.addColorStop(1, '#d6e2a8');
+      g.addColorStop(0, '#6e9a3e'); g.addColorStop(0.6, '#86ac50'); g.addColorStop(1, '#c4d892');
       c.fillStyle = g; c.fillRect(0, 0, w, h);
       blotch(c, w, h, 30, 21, '#6e9a40', 0.35, 30);
       var r = U.rng(5), k;
@@ -647,9 +648,9 @@
         c.beginPath(); c.moveTo(xm, y); c.lineTo(w / 2 + Math.sin((t + 1 / 30) * 3) * 6, y - h / 30); c.stroke();
         if (k % 3 === 0) {
           for (var sd = -1; sd <= 1; sd += 2) {
-            c.lineWidth = Math.max(1, 5 * (1 - t)); c.globalAlpha = 0.6;
+            c.lineWidth = Math.max(1, 4 * (1 - t)); c.globalAlpha = 0.4;
             c.beginPath(); c.moveTo(xm, y);
-            c.quadraticCurveTo(xm + sd * w * 0.2, y - h * 0.08, xm + sd * w * (0.4 + 0.1 * r()), y - h * (0.2 + 0.05 * r()));
+            c.bezierCurveTo(xm + sd * w * 0.12, y - h * (0.03 + 0.04 * r()), xm + sd * w * (0.25 + 0.1 * r()), y - h * (0.06 + 0.08 * r()), xm + sd * w * (0.42 + 0.1 * r()), y - h * (0.18 + 0.12 * r()));
             c.stroke();
           }
         }
@@ -663,11 +664,11 @@
       var ph0 = od[0], plen = 1.9;
       var lg = grid(18, 12, function (u, v) {
         var phi = ph0 + (u - 0.5) * plen;
-        var thTop = 0.95 + od[1] + 0.12 * Math.sin(u * PI * 3 + n) + 0.15 * Math.pow(Math.abs(u - 0.5) * 2, 2);
+        var thTop = 0.95 + od[1] + 0.1 * Math.sin(u * PI * 5 + n) + 0.06 * Math.sin(u * PI * 11 + n * 3) + 0.35 * Math.pow(Math.abs(u - 0.5) * 2, 2) - 0.12 * Math.sin(u * PI);
         var th = lerp(thTop, 2.65, v);
         var x = Math.sin(th) * Math.sin(phi), y = Math.cos(th), z = Math.sin(th) * Math.cos(phi);
         var c = cab(x, y, z), side = Math.pow(Math.abs(u - 0.5) * 2, 3);
-        var curl = 0.09 * Math.pow(1 - v, 3) + 0.05 * side * (1 - v * 0.6);
+        var curl = 0.045 * Math.pow(1 - v, 3) + 0.025 * side * (1 - v * 0.6);
         var rr = c[0] + 0.012 + curl + 0.006 * noise(u * 7, v * 5, n);
         var py = y * rr;
         if (py < -0.82) py = -0.82 + (py + 0.82) * 0.25;
@@ -743,11 +744,11 @@
         ell(12, 11, '#cfe0a8');
         ell(17, 15, '#e8efc8');
         var g = c.createRadialGradient(cx, cy, 10, cx, cy, h);
-        ell(21, 19, '#ee9e98');
-        ell(26, 24, '#e2545a');
-        ell(34, 31, '#d8323c');
-        blotch(c, w, h, 50, 4, '#f06068', 0.25, 22);
-        blotch(c, w, h, 40, 6, '#b81e2a', 0.25, 22);
+        ell(20, 18, '#e88a84');
+        ell(24, 22, '#d23a40');
+        ell(34, 31, '#c41f2c');
+        blotch(c, w, h, 50, 4, '#e04450', 0.25, 22);
+        blotch(c, w, h, 40, 6, '#a0141f', 0.3, 22);
         /* 細い繊維（中心から外へ） */
         for (i = 0; i < 400; i++) {
           var a = PI + r() * PI, k0 = 0.1 + 0.6 * r();
@@ -758,7 +759,7 @@
           c.lineTo(cx + Math.cos(a) * (ax - 34) * (k0 + 0.12), cy + Math.sin(a) * (ay - 31) * (k0 + 0.12));
           c.stroke();
         }
-        U.speckle(c, w, h, { n: 1500, size: 1.1, alpha: 0.18, light: '#ffc8c8', dark: '#900010', lightRatio: 0.7, seed: 9 });
+        U.speckle(c, w, h, { n: 1200, size: 1.0, alpha: 0.08, light: '#ffb0b0', dark: '#900010', lightRatio: 0.7, seed: 9 });
         void g;
       } else {
         c.fillStyle = mode === 1 ? '#808080' : '#909090'; c.fillRect(0, 0, w, h);
@@ -767,7 +768,7 @@
           /* 粗さ: 果肉はところどころ鏡のように（きらめき） */
           c.fillStyle = '#606060';
           c.beginPath(); c.ellipse(cx, cy, ax - 22, ay - 20, 0, PI, TAU); c.fill();
-          U.speckle(c, w, h, { n: 2500, size: 1, alpha: 0.6, light: '#202020', dark: '#909090', lightRatio: 0.6, seed: 10 });
+          U.speckle(c, w, h, { n: 900, size: 0.9, alpha: 0.5, light: '#303030', dark: '#808080', lightRatio: 0.5, seed: 10 });
         }
       }
       /* 種 */
@@ -792,7 +793,7 @@
     var faceTex = U.tex(512, 256, function (c, w, h) { faceDraw(c, w, h, 0); });
     var faceBump = U.tex(512, 256, function (c, w, h) { faceDraw(c, w, h, 1); }, { data: true });
     var faceRough = U.tex(512, 256, function (c, w, h) { faceDraw(c, w, h, 2); }, { data: true });
-    var faceM = phys({ map: faceTex, bumpMap: faceBump, bumpScale: 0.8, roughnessMap: faceRough, roughness: 0.75, clearcoat: 0.6, clearcoatRoughness: 0.25 });
+    var faceM = phys({ map: faceTex, bumpMap: faceBump, bumpScale: 0.3, roughnessMap: faceRough, roughness: 0.75, clearcoat: 0.25, clearcoatRoughness: 0.3, envMapIntensity: 0.7 });
     [-1, 1].forEach(function (sg) {
       var fg = grid(48, 14, function (u, v) {
         var ps = u * PI, x = -A * Math.cos(ps), s = Math.sin(ps), rho = v * R * s;
