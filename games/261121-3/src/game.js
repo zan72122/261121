@@ -3,7 +3,8 @@
 // 公開 API
 //   import { createGame } from './game.js';
 //   const game = createGame({ engine, input, audio, hints, tweens, state, save });
-//   game.start() → Promise（3場面を生成 → state.stage の場面に入ってフェードイン）
+//   game.start() → Promise（state.stage の場面だけ生成して入り、フェードイン。ほかの場面は
+//        初めて行くときに、白フェードの裏で生成する＝起動が速く、生成の引っかかりが見えない）
 //   game.update(dt, t)   … main.js が毎フレーム呼ぶ（現在の場面の update を呼ぶ）
 //   game.ctx             … 場面に渡す ctx
 //
@@ -16,7 +17,7 @@
 //
 // 場面ファクトリ（scene_*.js）: createXxxScene(ctx) →
 //   { group: THREE.Group, env: Texture|null, envIntensity?: number, background?: Color|Texture|null,
-//     enter(), exit(), update(dt, t) }
+//     fog?: THREE.Fog|null, enter(), exit(), update(dt, t) }
 //   enter() は毎回 state から作り直す。exit() では自分の input ハンドル・tween スコープを片付ける。
 import { createKitchenScene } from './scene_kitchen.js';
 import { createWalkScene } from './scene_walk.js';
@@ -33,6 +34,15 @@ export function createGame(base) {
     current: () => currentName,
   });
 
+  const facs = { kitchen: createKitchenScene, walk: createWalkScene, park: createParkScene };
+  function ensure(name) {
+    if (!scenes[name] && facs[name]) {
+      try { scenes[name] = facs[name](ctx); } catch (e) { console.error('scene build failed', name, e); }
+    }
+    return scenes[name];
+  }
+  const twoFrames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+
   function attach(name) {
     const s = scenes[name];
     currentName = name; current = s;
@@ -40,8 +50,10 @@ export function createGame(base) {
     engine.scene.environment = s.env || null;
     engine.scene.environmentIntensity = s.envIntensity != null ? s.envIntensity : 1;
     engine.scene.background = s.background != null ? s.background : null;
+    engine.scene.fog = s.fog || null;
     engine.applyQuality(s.group);
     try { s.enter(); } catch (e) { console.error(e); }
+    try { engine.renderer.compile(engine.scene, engine.camera); } catch (e) { /* 任意の最適化 */ }
   }
   function detach() {
     if (!current) return;
@@ -52,7 +64,7 @@ export function createGame(base) {
   }
 
   async function goto(stage) {
-    if (busy || !scenes[stage]) return;
+    if (busy || !facs[stage]) return;
     busy = true;
     try {
       if (base.input && base.input.cancel) base.input.cancel();
@@ -60,6 +72,8 @@ export function createGame(base) {
       detach();
       state.stage = stage;
       save.store(state);
+      if (!scenes[stage]) { await twoFrames(); ensure(stage); }
+      if (!scenes[stage]) { stage = currentName && scenes[currentName] ? currentName : 'kitchen'; ensure(stage); state.stage = stage; }
       attach(stage);
       await engine.fade(0, 0.6, '#fff');
     } finally { busy = false; }
@@ -74,13 +88,8 @@ export function createGame(base) {
   async function start() {
     engine.fade(1, 0, '#fff');
     busy = true;
-    const facs = { kitchen: createKitchenScene, walk: createWalkScene, park: createParkScene };
-    for (const k of Object.keys(facs)) {
-      try { scenes[k] = facs[k](ctx); } catch (e) { console.error('scene build failed', k, e); }
-    }
-    let first = scenes[state.stage] ? state.stage : 'kitchen';
-    if (!scenes[first]) first = Object.keys(scenes)[0];
-    if (!first) throw new Error('no scenes');
+    let first = facs[state.stage] ? state.stage : 'kitchen';
+    if (!ensure(first)) { first = 'kitchen'; if (!ensure(first)) throw new Error('no scenes'); }
     state.stage = first;
     attach(first);
     busy = false;
