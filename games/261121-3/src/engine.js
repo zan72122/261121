@@ -3,7 +3,7 @@
 // 公開 API
 //   import { createEngine, showFallback } from './engine.js';
 //   const engine = createEngine();   // WebGL が作れなければ代替画面を出して null
-//   showFallback()                   // 代替画面（#fb の静止画、無ければ暖色グラデーション）を出す
+//   showFallback()                   // 代替画面（#fb の静止画 assets/fallback.jpg、読めなければ暖色グラデーション）を出す
 //
 //   engine.scene / engine.camera (PerspectiveCamera near 0.02 far 60) / engine.renderer
 //   engine.time            … 経過秒（エンジンの時計。非表示中は進まない）
@@ -26,6 +26,7 @@
 //   engine.project(worldVec3) → { x, y, behind }（CSS px）
 //   engine.rayAt(x, y)     → THREE.Ray（CSS px から）
 //   engine.pxPerMeter(worldVec3) → その奥行きで 1m が何 px か
+//   engine.skipPerf()      … 次のフレームの所要時間を動的解像度の計測に入れない（裏の下ごしらえ用）
 import * as THREE from 'three';
 
 export function showFallback() {
@@ -34,7 +35,10 @@ export function showFallback() {
     if (c) c.style.display = 'none';
     const fb = document.getElementById('fb');
     const src = fb && fb.getAttribute('data-src');
-    if (fb && src && src.startsWith('data:')) { fb.src = src; fb.style.display = 'block'; }
+    if (fb && src && !src.includes('__FALLBACK__')) {
+      fb.onerror = () => { fb.style.display = 'none'; document.body.style.background = 'linear-gradient(160deg,#fff4e2 0%,#ffe2c4 45%,#f7c9a6 100%)'; };
+      fb.src = src; fb.style.display = 'block';
+    }
     else document.body.style.background = 'linear-gradient(160deg,#fff4e2 0%,#ffe2c4 45%,#f7c9a6 100%)';
     const f = document.getElementById('fade');
     if (f) f.style.opacity = '0';
@@ -371,7 +375,7 @@ export function createEngine() {
   }
 
   // ---- ループ ----
-  let raf = 0, last = -1, running = false, lost = false;
+  let raf = 0, last = -1, running = false, lost = false, skipPerfNext = false;
   const engine = {
     scene, camera, renderer, time: 0, size, safe, quality,
     onUpdate(fn) { ups.push(fn); return () => { const i = ups.indexOf(fn); if (i >= 0) ups.splice(i, 1); }; },
@@ -381,6 +385,8 @@ export function createEngine() {
     applyQuality, setShot, fade, project, rayAt, pxPerMeter,
     getShot() { return shot ? Object.assign({}, shot, { position: anim.toPos.clone(), distance: shot.distance }) : null; },
     shake(amount = 0.01, dur = 0.3) { shakeAmt = amount; shakeDur = dur; shakeT = 0; },
+    // 裏の下ごしらえで1フレームだけ長くなったとき、動的解像度の計測から外す
+    skipPerf() { skipPerfNext = true; },
   };
 
   function frame(now) {
@@ -393,7 +399,7 @@ export function createEngine() {
     const dt = Math.min(raw, 1 / 20);
     engine.time += dt;
     applySize(false);
-    perf(Math.min(raw, 0.25));
+    if (skipPerfNext) skipPerfNext = false; else perf(Math.min(raw, 0.25));
     updateCamera(dt, engine.time);
     updateFade(dt);
     for (const f of ups.slice()) {

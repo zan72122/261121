@@ -9,10 +9,12 @@ import { createHints } from './hints.js';
 import { createSave } from './save.js';
 import { createGame } from './game.js';
 import { state, adoptSaved } from './state.js';
+import { exposeShared } from './shared.js';
 
 function boot() {
   let engine = null;
   try {
+    exposeShared(); // later.js（歩く・公園）が同じ three.js・小物を使えるように
     engine = createEngine();
     if (!engine) return;
     const input = createInput(engine);

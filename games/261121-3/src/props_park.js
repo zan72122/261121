@@ -1170,3 +1170,14 @@ export function createWalkSet(renderer) {
   group.userData.update(0, 0);
   return group;
 }
+
+// ═══ 前もって作れるもの ══════════════════════════════════════════════════════
+// 台所で遊んでいる間に1つずつ呼んでおくと、歩く・公園の場面を作るときにキャッシュが使われて速い
+// （どれも once() でキャッシュされる決定的な生成なので、呼ぶ順番・時期で見た目は変わらない）。
+export function parkWarmSteps(renderer) {
+  return [
+    grassTex, macroTex, gravelTex, barkTex, ginghamTex, woodTex,
+    leafMaterial, leafGeometry, bladeGeometry, cloverGeometry, barkMaterial,
+    makeBench, hedgeParts, blanketMaterial, () => makeEnv(renderer),
+  ];
+}
