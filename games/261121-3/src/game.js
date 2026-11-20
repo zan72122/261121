@@ -76,7 +76,7 @@ export function createGame(base) {
       target = tmp;
     }
     try {
-      if (r.compileAsync) await r.compileAsync(target, engine.camera);
+      if (r.compileAsync && r.extensions.has('KHR_parallel_shader_compile')) await r.compileAsync(target, engine.camera);
       else r.compile(target, engine.camera);
     } catch (e) { /* 任意の最適化 */ }
     if (tmp && s.group.parent === tmp) tmp.remove(s.group);

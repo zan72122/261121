@@ -65,7 +65,7 @@ function paintMaps(w, h, fn) {
     const rv = o.ro * 255; R[i] = R[i + 1] = R[i + 2] = rv; R[i + 3] = 255;
   }
   cx.putImageData(ci, 0, 0); hx.putImageData(hi, 0, 0); rx.putImageData(ri, 0, 0);
-  return { color: cc, height: hc, rough: rc };
+  return { color: cc, height: hc, rough: rc, heightData: Hd }; // heightData: height に描き足さないときだけ normalFromHeight に渡す
 }
 function wrapTex(t, rx = 1, ry = 1) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); t.needsUpdate = true; return t; }
 
@@ -181,7 +181,7 @@ function woodMaps() {
     });
     return {
       map: canvasTexture(maps.color, { aniso: 8 }),
-      normal: normalFromHeight(maps.height, 1.6),
+      normal: normalFromHeight(maps.height, 1.6, { data: maps.heightData }),
       rough: canvasTexture(maps.rough, { srgb: false, aniso: 8 }),
     };
   });
@@ -217,7 +217,7 @@ function tileMaps() {
         o.ro = 0.07 + 0.05 * wav;
       }
     });
-    return { map: canvasTexture(maps.color), normal: normalFromHeight(maps.height, 3.2), rough: canvasTexture(maps.rough, { srgb: false }) };
+    return { map: canvasTexture(maps.color), normal: normalFromHeight(maps.height, 3.2, { data: maps.heightData }), rough: canvasTexture(maps.rough, { srgb: false }) };
   });
 }
 // ごはん粒: 512px = 0.05m
@@ -1021,7 +1021,7 @@ export function createChopsticks() {
       o.r = 222 * k; o.g = 186 * k; o.b = 124 * k;
       o.h = 0.5 + 0.25 * fib + 0.2 * node; o.ro = 0.5 + 0.15 * fib;
     });
-    return new THREE.MeshPhysicalMaterial({ map: canvasTexture(maps.color), normalMap: normalFromHeight(maps.height, 1.2, { wrap: false }), roughnessMap: canvasTexture(maps.rough, { srgb: false }), roughness: 1, clearcoat: 0.25, clearcoatRoughness: 0.4 });
+    return new THREE.MeshPhysicalMaterial({ map: canvasTexture(maps.color), normalMap: normalFromHeight(maps.height, 1.2, { wrap: false, data: maps.heightData }), roughnessMap: canvasTexture(maps.rough, { srgb: false }), roughness: 1, clearcoat: 0.25, clearcoatRoughness: 0.4 });
   });
   const geo = cached('stickGeo', () => {
     const pts = [new THREE.Vector2(0, 0), new THREE.Vector2(0.0009, 0.0002), new THREE.Vector2(0.0014, 0.0012)];
@@ -1066,7 +1066,7 @@ function canvasMaps() {
       const k = (0.86 + 0.14 * h) * (0.96 + 0.06 * fbm(n, x / 20, y / 20, 2)) * fleck;
       o.r = 233 * k; o.g = 223 * k; o.b = 201 * k; o.h = h * 0.8; o.ro = 0.9 - 0.08 * h;
     });
-    return { map: wrapTex(canvasTexture(maps.color)), normal: wrapTex(normalFromHeight(maps.height, 1.6)), rough: wrapTex(canvasTexture(maps.rough, { srgb: false })) };
+    return { map: wrapTex(canvasTexture(maps.color)), normal: wrapTex(normalFromHeight(maps.height, 1.6, { data: maps.heightData })), rough: wrapTex(canvasTexture(maps.rough, { srgb: false })) };
   });
 }
 function webbingMat() {

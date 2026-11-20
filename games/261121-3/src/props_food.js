@@ -97,7 +97,7 @@ function paintMaps(w, h, fn, { normal = 2, wrap = true } = {}) {
     const rr = clamp(v[4], 0, 1) * 255; ri.data[i] = ri.data[i + 1] = ri.data[i + 2] = rr; ri.data[i + 3] = 255;
   }
   cx.putImageData(ci, 0, 0); hx.putImageData(hi, 0, 0); rx.putImageData(ri, 0, 0);
-  return { map: canvasTexture(cc), normalMap: normalFromHeight(hc, normal, { wrap }), roughnessMap: canvasTexture(rc, { srgb: false }) };
+  return { map: canvasTexture(cc), normalMap: normalFromHeight(hc, normal, { wrap, data: hi.data }), roughnessMap: canvasTexture(rc, { srgb: false }) };
 }
 function setWrap(maps, rx = 1, ry = 1) {
   for (const k in maps) { const t = maps[k]; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(rx, ry); }
@@ -207,7 +207,7 @@ function riceMaps() {
     // ラフネス（すきまはマット、粒は少しつや）
     const hd = hx.getImageData(0, 0, S, S).data;
     const rc = paintPixels(S, S, (x, y) => { const h = hd[(y * S + x) * 4] / 255; const v = (0.78 - h * 0.45) * 255; return [v, v, v]; });
-    return { map: canvasTexture(cc), normalMap: normalFromHeight(hc, 1.8), roughnessMap: canvasTexture(rc, { srgb: false }) };
+    return { map: canvasTexture(cc), normalMap: normalFromHeight(hc, 1.8, { data: hd }), roughnessMap: canvasTexture(rc, { srgb: false }) };
   });
 }
 function riceMaterial(rx, ry, key) {
