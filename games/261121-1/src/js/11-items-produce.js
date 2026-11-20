@@ -793,7 +793,7 @@
     var faceTex = U.tex(512, 256, function (c, w, h) { faceDraw(c, w, h, 0); });
     var faceBump = U.tex(512, 256, function (c, w, h) { faceDraw(c, w, h, 1); }, { data: true });
     var faceRough = U.tex(512, 256, function (c, w, h) { faceDraw(c, w, h, 2); }, { data: true });
-    var faceM = phys({ map: faceTex, bumpMap: faceBump, bumpScale: 0.3, roughnessMap: faceRough, roughness: 0.85, clearcoat: 0.12, clearcoatRoughness: 0.45, envMapIntensity: 0.45 });
+    var faceM = phys({ map: faceTex, bumpMap: faceBump, bumpScale: 0.3, roughnessMap: faceRough, roughness: 1.0, clearcoat: 0.06, clearcoatRoughness: 0.5, envMapIntensity: 0.22 });
     [-1, 1].forEach(function (sg) {
       var fg = grid(48, 14, function (u, v) {
         var ps = u * PI, x = -A * Math.cos(ps), s = Math.sin(ps), rho = v * R * s;

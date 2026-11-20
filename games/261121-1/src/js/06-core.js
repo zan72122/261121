@@ -236,7 +236,7 @@
     return t;
   }
   function getGlowTex() {
-    if (!glowTex) glowTex = radialTex([[0, 'rgba(255,255,255,0.03)'], [0.4, 'rgba(255,255,255,0.14)'], [0.62, 'rgba(255,255,255,0.24)'], [0.8, 'rgba(255,255,255,0.08)'], [1, 'rgba(255,255,255,0)']]);
+    if (!glowTex) glowTex = radialTex([[0, 'rgba(255,255,255,0.10)'], [0.4, 'rgba(255,255,255,0.30)'], [0.62, 'rgba(255,255,255,0.55)'], [0.8, 'rgba(255,255,255,0.20)'], [1, 'rgba(255,255,255,0)']]);
     return glowTex;
   }
   function getDotTex() {
@@ -254,7 +254,7 @@
     this.cur = 0;
     this.owner = G.current;
     this.phase = Math.random() * 6.28;
-    var m = new T.SpriteMaterial({ map: getGlowTex(), color: new T.Color(o.color == null ? 0xfff0c0 : o.color), blending: T.AdditiveBlending, transparent: true, depthWrite: false, depthTest: false, opacity: 0, toneMapped: false });
+    var m = new T.SpriteMaterial({ map: getGlowTex(), color: new T.Color(o.color == null ? 0xffd45c : o.color), blending: T.NormalBlending, transparent: true, depthWrite: false, depthTest: false, opacity: 0, toneMapped: false });
     this.sprite = new T.Sprite(m);
     this.sprite.renderOrder = 900;
     this.sprite.visible = false;
@@ -269,12 +269,12 @@
     this.cur = U.damp(this.cur, this.lv, 6, dt);
     var p = srcPos(this.src, _v1);
     if (!p || this.cur < 0.01) { s.visible = false; return; }
-    var rad = srcRadius(this.src, this.r) * this.size;
+    var rad = Math.min(0.2, srcRadius(this.src, this.r) * this.size);
     var pulse = Math.sin(G.time * 2.6 + this.phase);
     s.position.copy(p);
     var k = rad * 2 * (1 + 0.07 * pulse) * (0.85 + 0.15 * Math.min(this.cur, 1.5));
     s.scale.set(k, k, 1);
-    s.material.opacity = Math.min(1, this.cur * (0.75 + 0.25 * pulse));
+    s.material.opacity = Math.min(1, this.cur * (0.6 + 0.22 * pulse));
     s.visible = true;
   };
   Glow.prototype.remove = function () {
@@ -618,7 +618,7 @@
             h.tip.getWorldPosition(H.tipL);
             h.group.worldToLocal(H.tipL);
           } else H.tipL.set(0, H.len, 0);
-          h.group.traverse(function (m) { m.renderOrder = 950; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = false; m.userData.noPick = true; });
+          h.group.traverse(function (m) { m.renderOrder = (m.material && m.material.colorWrite === false) ? 949 : 950; m.frustumCulled = false; m.castShadow = false; m.receiveShadow = false; m.userData.noPick = true; });
           h.group.visible = false;
           return;
         }
@@ -713,7 +713,7 @@
       _v3.copy(H.tipL).multiplyScalar(s).applyQuaternion(g.quaternion);
       g.position.copy(_gP).sub(_v3);
       ghostPose('point');
-      if (typeof H.ghost.setOpacity === 'function') { try { H.ghost.setOpacity(0.6 * _gs.alpha); } catch (e) { err('Hand.setOpacity', e); } }
+      if (typeof H.ghost.setOpacity === 'function') { try { H.ghost.setOpacity(_gs.alpha); } catch (e) { err('Hand.setOpacity', e); } }
       if (typeof H.ghost.update === 'function') { try { H.ghost.update(dt); } catch (e2) { err('Hand.update', e2); } }
     } else {
       var k = handScreen * 0.35 * (1 - 0.2 * sink);
@@ -1067,7 +1067,7 @@
     try {
       r.outputColorSpace = T.SRGBColorSpace;
       r.toneMapping = T.ACESFilmicToneMapping;
-      r.toneMappingExposure = 1.0;
+      r.toneMappingExposure = 0.78;
       r.shadowMap.enabled = true;
       r.shadowMap.type = T.PCFShadowMap;
       r.setClearColor(0x2a1d17, 1);

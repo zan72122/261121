@@ -92,7 +92,8 @@ Hand.create({ghost:false, sleeve:true, side:'R'}) -> {
   tip,            // 人さし指の先に付いた Object3D
   pose(name, dur) // 'open' | 'point' | 'grip' | 'pinch' | 'card'（カードを持つ）
   update(dt),     // 指のアニメーションを進める
-  setOpacity(a)
+  setOpacity(a),
+  hold            // 物を持つ位置の Object3D（向きは人さし指に沿う）
 }
 ```
 `ghost:true` は半透明のお手本用（袖なし・全体が1つの淡い半透明素材）。
@@ -181,4 +182,11 @@ G.state = {
 
 ## 標準の光（見た目をそろえる）
 
-`renderer.toneMapping = ACESFilmicToneMapping`、露出 1.0、sRGB 出力。`scene.environment = G.env`（RoomEnvironment 由来、強さ 0.9）。主光は暖かい白の DirectionalLight 強さ 2.2 前後＋ HemisphereLight 0.4。`tools/preview.cjs` はこの光で部品を写す。
+`renderer.toneMapping = ACESFilmicToneMapping`、露出 0.78（白い物が飛ばないよう統合時に下げた）、sRGB 出力。`scene.environment = G.env`（RoomEnvironment 由来、強さ 0.9）。主光は暖かい白の DirectionalLight 強さ 2.2 前後＋ HemisphereLight 0.4。`tools/preview.cjs` はこの光で部品を写す。
+
+## 統合時に決めたこと
+
+- `Items.make` は、同じ素材の部品を1つの形にまとめた複製を返す（`Items._bake`。1品 2〜6 メッシュ）。品物の中の部品を個別に動かすことはできない。
+- 光るヒント（`G.glow`）は黄色寄りの通常合成（白い床や冷蔵庫の上でも見える）。大きさは半径 0.2m まで。
+- レジ: 持った品物の高さは「指が台のどこを指しているか」だけで決める（品物の位置で決めると揺れ戻して何度も鳴る）。全部読み終えると、空のかごが手前へ下がってからレシートが出る。
+- ビルドは `node build.cjs`。`tools/preview.cjs` は部品の見た目確認用。

@@ -18,7 +18,7 @@
   ];
   var RECOMMEND = ['apple', 'milk', 'egg', 'pudding', 'tomato', 'carrot', 'strawberry', 'juice', 'cabbage', 'yogurt', 'cheese', 'watermelon'];
   var TRAY = { tomato: 'tray', apple: 'tray', cabbage: 'mat' };
-  var CART_Z = 0.55;
+  var CART_Z = 0.6;
   var BASKET_Y = 0.46;
   var HOLD_Z = 0.15;
 
@@ -570,6 +570,7 @@
         col.items.push(rec);
         self.scene.add(rec.c);
         self.placeHome(rec, i);
+        castOf(rec, i === 0);   // 奥の品物は影を落とさない(描画を軽く)
       }
     });
     // かご
@@ -593,6 +594,12 @@
     hint(null);
     if (this.arm) this.arm.group.visible = false;
   };
+
+  function castOf(rec, on) {
+    rec.inner.traverse(function (m) {
+      if (m.isMesh) m.castShadow = on && !(m.material && m.material.transparent && m.material.opacity < 0.5);
+    });
+  }
 
   S.makeRec = function (kind) {
     var inner = Items.make(kind);
@@ -1009,6 +1016,7 @@
     var self = this, first = true, gen = this.gen;
     col.items.forEach(function (rec, i) {
       if (rec.where !== 'shelf' || rec.busy) return;
+      castOf(rec, i === 0);
       var h = self.homeOf(rec, i);
       var c = rec.c;
       var z0 = c.position.z, x0 = c.position.x, y0 = c.position.y;
@@ -1077,7 +1085,7 @@
   };
 
   S.layout = function () {
-    if (G.fit) G.fit(this.camera, { center: new V3(0, 1.15, 0.2), w: 0.82, h: 1.9, pitch: 0.36 });
+    if (G.fit) G.fit(this.camera, { center: new V3(0, 1.2, 0.25), w: 0.82, h: 2.0, pitch: 0.5 });
     else { this.camera.position.set(0, 1.75, 3.1); this.camera.lookAt(0, 1.15, 0.2); }
     this.camBase.copy(this.camera.position);
     if (this.camOff) this.camera.position.x += this.camOff;

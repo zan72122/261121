@@ -401,7 +401,7 @@
     function addMat(m) { mats.push(m); base.push(m.opacity); return m; }
     var skin, nail, gm = null, pre = null;
     if (ghost) {
-      gm = addMat(new T.MeshStandardMaterial({ color: 0xf3dccb, roughness: 0.55, metalness: 0, emissive: 0x30241c, transparent: true, opacity: 0.5, depthWrite: true }));
+      gm = addMat(new T.MeshStandardMaterial({ color: 0xd9a07e, roughness: 0.6, metalness: 0, emissive: 0x24140c, transparent: true, opacity: 0.78, depthWrite: true }));
       pre = new T.MeshBasicMaterial({ colorWrite: false, depthWrite: true, transparent: true, opacity: 1 });
       skin = nail = gm;
     } else {

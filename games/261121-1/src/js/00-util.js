@@ -95,6 +95,66 @@
 
   Items.has = function (kind) { return !!Items._build[kind]; };
 
+  /* 描画を軽くする: 同じ素材の部品を1つの形にまとめる(1品が数十メッシュ → 数メッシュ)。
+     まとめられない部品(素材が配列・属性の型が違う等)はそのまま残す。 */
+  Items._bake = function (p) {
+    try {
+      p.updateMatrixWorld(true);
+      var buckets = {}, keys = [], keep = [], bad = false;
+      p.traverse(function (m) {
+        if (bad || !m.isMesh) return;
+        var vis = true, a = m;
+        while (a) { if (!a.visible) { vis = false; break; } a = a.parent; }
+        if (!vis) return;
+        var g = m.geometry, mat = m.material;
+        if (!g || !mat || Array.isArray(mat) || m.isSkinnedMesh || m.isInstancedMesh || !g.attributes.position ||
+            (g.morphAttributes && Object.keys(g.morphAttributes).length) || m.onBeforeRender !== T.Object3D.prototype.onBeforeRender) {
+          keep.push(m); return;
+        }
+        var c = g.clone();
+        c.applyMatrix4(m.matrixWorld);
+        if (m.matrixWorld.determinant() < 0) {
+          if (!c.index) { var n = c.attributes.position.count, ia = []; for (var i = 0; i < n; i++) ia.push(i); c.setIndex(ia); }
+          var ix = c.index.array;
+          for (var j = 0; j + 2 < ix.length; j += 3) { var t = ix[j + 1]; ix[j + 1] = ix[j + 2]; ix[j + 2] = t; }
+        }
+        if (c.index) { var c2 = c.toNonIndexed(); c.dispose(); c = c2; }
+        c.clearGroups();
+        var names = Object.keys(c.attributes).sort(), sig = '';
+        for (var k = 0; k < names.length; k++) {
+          var at = c.attributes[names[k]];
+          if (at.isInterleavedBufferAttribute) { keep.push(m); return; }
+          sig += names[k] + ':' + at.itemSize + ':' + at.array.constructor.name + (at.normalized ? 'n' : '') + ',';
+        }
+        var key = mat.uuid + '|' + m.renderOrder + '|' + sig;
+        if (!buckets[key]) { buckets[key] = { mat: mat, ro: m.renderOrder, geos: [] }; keys.push(key); }
+        buckets[key].geos.push(c);
+      });
+      var out = new T.Group();
+      out.userData = p.userData;
+      for (var b = 0; b < keys.length; b++) {
+        var bk = buckets[keys[b]];
+        var mg = bk.geos.length === 1 ? bk.geos[0] : T.BufferGeometryUtils.mergeGeometries(bk.geos, false);
+        if (!mg) return p;
+        var mesh = new T.Mesh(mg, bk.mat);
+        mesh.renderOrder = bk.ro;
+        out.add(mesh);
+      }
+      for (var q = 0; q < keep.length; q++) {
+        var km = keep[q];
+        km.updateMatrixWorld(true);
+        var wm = km.matrixWorld.clone();
+        if (km.parent) km.parent.remove(km);
+        wm.decompose(km.position, km.quaternion, km.scale);
+        out.add(km);
+      }
+      return out;
+    } catch (e) {
+      if (window.console) console.error('Items.bake', e);
+      return p;
+    }
+  };
+
   Items._prototype = function (kind) {
     var p = Items._proto[kind];
     if (p) return p;
@@ -108,6 +168,7 @@
       m.position.y = 0.04;
       p.add(m);
     }
+    p = Items._bake(p);
     U.shadow(p, true, true);
     p.updateMatrixWorld(true);
     var box = new T.Box3().setFromObject(p), size = new T.Vector3();

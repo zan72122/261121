@@ -12,16 +12,16 @@
   /* ───────── 配置 ───────── */
   var GLASS = { x: 0, z: -0.10, half: 0.10 };            // 読み取り口の窓 0.20×0.20
   var ZONE = GLASS.half + 0.06;                          // ぴっ判定の四角（各辺 +0.06）
-  var BASKET_POS = new V3(0, 0, 0.30);
+  var BASKET_POS = new V3(0, 0, 0.33);
   var BAG_POS = new V3(-0.02, 0, -0.44);
   var PIL = { x: 0.25, z: -0.16 };                        // レジの柱
   var PAD = new V3(0.25, 0.0612, -0.125);                 // カード読み取りパッドの中心（上面）
-  var SLOT = new V3(0.25, 0.041, -0.0815);                // レシートの出口
+  var SLOT = new V3(0.29, 0.041, -0.0815);                // レシートの出口
   var HOLD_PLANE = 0.30;                                  // 指で動かす水平面
   var HOLD_B = 0.27, SCAN_B = 0.07, BAG_B = 0.45;         // 持っている品物の底の高さ（ふつう／ガラスの上／バッグの上）
   var SCALE = [0, 2, 4, 5, 7, 9, 11, 12];
   var DEFAULT = ['milk', 'egg', 'apple', 'tomato', 'pudding', 'carrot'];
-  var REC_W = 0.074, REC_MAX = 0.22, REC_H0 = SLOT.y;
+  var REC_W = 0.095, REC_MAX = 0.26, REC_H0 = SLOT.y, PAPER_YAW = -0.42;
 
   /* ───────── 小道具 ───────── */
   function snd(name, o) { var S = window.Sound; if (S && typeof S.play === 'function') { try { S.play(name, o || {}); } catch (e) {} } }
@@ -64,7 +64,7 @@
   /* ───────── テクスチャ ───────── */
   function laminateMaps() {
     var col = U.tex(512, 512, function (c, w, h) {
-      c.fillStyle = '#eceae5'; c.fillRect(0, 0, w, h);
+      c.fillStyle = '#e2e0da'; c.fillRect(0, 0, w, h);
       var r = U.rng(11);
       for (var i = 0; i < 60; i++) {
         var x = r() * w, y = r() * h, rad = 30 + r() * 90;
@@ -212,23 +212,6 @@
   function getHandIcon() {
     if (handIcon) return handIcon;
     var cv = U.canvas(256, 256), c = cv.getContext('2d');
-    function shape() {
-      c.beginPath();
-      rr(c, 70, 112, 116, 112, 46);
-      var fx = [86, 113, 140, 166], fh = [92, 108, 104, 84], fw = 25;
-      for (var i = 0; i < 4; i++) { rr(c, fx[i] - fw / 2, 150 - fh[i], fw, fh[i] + 20, fw / 2); }
-      c.save();
-      c.translate(80, 170); c.rotate(-0.85);
-      rr(c, -14, -78, 28, 92, 14);
-      c.restore();
-    }
-    function path() {
-      c.beginPath();
-      c.moveTo(0, 0);
-      var parts = [];
-      void parts;
-    }
-    void path;
     // 外形の線（太く描いてから中を塗りつぶす → 外側だけ残る）
     var subs = [
       function () { rr(c, 70, 112, 116, 112, 46); },
@@ -238,7 +221,6 @@
       function () { rr(c, 166 - 12.5, 66, 25, 104, 12.5); },
       function () { c.save(); c.translate(80, 176); c.rotate(-0.9); rr(c, -14, -80, 28, 94, 14); c.restore(); }
     ];
-    void shape;
     var i;
     c.lineJoin = 'round';
     c.strokeStyle = '#d49a78'; c.lineWidth = 12;
@@ -373,6 +355,10 @@
         var f = s / 0.001, i0 = Math.min(P.length - 2, Math.floor(f)), fr = f - i0;
         y = U.lerp(P[i0][0], P[i0 + 1][0], fr); z = U.lerp(P[i0][1], P[i0 + 1][1], fr);
       }
+      if (!flat) {
+        var fromTip = L - s;
+        if (fromTip < 0.08 && y < -REC_H0 + 0.003) { var cu = 1 - fromTip / 0.08; y += 0.026 * cu * cu; }
+      }
       var v = 1 - (L - s) / REC_MAX;
       for (var j = 0; j < 2; j++) {
         var k = i * 2 + j;
@@ -394,7 +380,7 @@
   }
   function drawReceipt(list) {
     var c = S.recCtx, w = S.recCv.width, h = S.recCv.height, i;
-    c.fillStyle = '#fbfaf6'; c.fillRect(0, 0, w, h);
+    c.fillStyle = '#fefdfa'; c.fillRect(0, 0, w, h);
     U.speckle(c, w, h, { seed: 41, n: 900, size: 0.8, alpha: 0.05, dark: '#9a968c' });
     c.fillStyle = '#d9d8d3'; c.fillRect(24, 22, w - 48, 2); c.fillRect(24, 30, w - 48, 2);
     var top = 46, bottom = h - 118, n = list.length;
@@ -451,7 +437,7 @@
     _e.set((r() - 0.5) * tilt, rec.yaw, (r() - 0.5) * tilt, 'YXZ');
     rec.homeQ.setFromEuler(_e);
     rec.holdQ.setFromEuler(_e.set(0, rec.yaw, 0, 'YXZ'));
-    rec.home.set(s.x + (r() - 0.5) * 0.02, (ud.floorY || 0.02) + 0.004 + layer * 0.075, s.z + (r() - 0.5) * 0.02).add(BASKET_POS);
+    rec.home.set(s.x + (r() - 0.5) * 0.02, (ud.floorY || 0.02) + 0.004 + layer * 0.075, (wide ? s.z * 0.25 : s.z) + (r() - 0.5) * 0.02).add(BASKET_POS);
     rec.root.position.copy(rec.home);
     rec.root.quaternion.copy(rec.homeQ);
     S.scene.add(rec.root);
@@ -518,7 +504,23 @@
   }
   function followTarget(rec) {
     if (!lastP) return;
-    _plane.constant = -HOLD_PLANE;
+    /* 指の下に品物が見えるようにする。高さは「指が台のどこを指しているか」だけで決め(品物の位置に
+       左右されないので揺れ戻しが起きない)、その高さの面で指の位置を求める */
+    var fG = 0, fB = 0, g;
+    _plane.constant = -0.1;
+    g = G.onPlane(lastP, _plane, _v);
+    if (g) {
+      var dx = Math.max(Math.abs(g.x - GLASS.x) - GLASS.half, 0), dz = Math.max(Math.abs(g.z - GLASS.z) - GLASS.half, 0);
+      fG = 1 - U.smooth((Math.sqrt(dx * dx + dz * dz) - 0.03) / 0.15);
+    }
+    _plane.constant = -0.42;
+    g = G.onPlane(lastP, _plane, _v);
+    if (g) {
+      var bx = Math.max(Math.abs(g.x - BAG_POS.x) - 0.2, 0), bz = Math.max(Math.abs(g.z - BAG_POS.z) - 0.1, 0);
+      fB = 1 - U.smooth(Math.sqrt(bx * bx + bz * bz) / 0.1);
+    }
+    rec.ty = U.lerp(U.lerp(HOLD_B, SCAN_B, fG), BAG_B, fB);
+    _plane.constant = -(rec.ty + Math.min((rec.h || 0.1) * 0.5, 0.06));
     var hit = G.onPlane(lastP, _plane, _v);
     if (hit) {
       rec.tx = U.clamp(hit.x, -0.7, 0.7);
@@ -532,7 +534,7 @@
     var p = rec.root.position;
     p.x = U.damp(p.x, rec.tx, 22, dt);
     p.z = U.damp(p.z, rec.tz, 22, dt);
-    p.y = U.damp(p.y, holdBottom(p.x, p.z), 18, dt);
+    p.y = U.damp(p.y, rec.ty != null ? rec.ty : holdBottom(p.x, p.z), 18, dt);
     rec.root.quaternion.slerp(rec.holdQ, 1 - Math.exp(-10 * dt));
     var inside = Math.abs(p.x - GLASS.x) <= ZONE && Math.abs(p.z - GLASS.z) <= ZONE;
     if (inside && !rec.inZone) doScan(rec, SCALE[rec.beeps % SCALE.length]);
@@ -557,7 +559,7 @@
   function scanFx(x, z, h, wd) {
     fx.flash = 1;
     fx.red = 0.15;
-    fx.beam = { t: 0, dur: 0.24, x: x, z: z, h: Math.max(0.06, h), w: Math.max(0.12, Math.min(0.26, wd)) };
+    fx.beam = { t: 0, dur: 0.3, x: x, z: z, h: Math.max(0.06, h), w: Math.max(0.12, Math.min(0.26, wd)) };
   }
   function doScan(rec, pitch) {
     rec.beeps++;
@@ -678,7 +680,7 @@
     for (var i = 0; i < recs.length; i++) if (recs[i].state !== 'bag') { nextHint(); return; }
     phase = 'pay';
     hint(null);
-    later(0.6, startPay);
+    later(0.5, startPay);
   }
 
   /* ───────── お会計 ───────── */
@@ -687,6 +689,13 @@
     phase = 'pay';
     hint(null);
     drawReceipt(G.state.scanned.slice());
+    /* 空になったかごは手前へ下がり、レシートの出る所が広く見える */
+    var z0 = BASKET_POS.z;
+    snd('slide', { vol: 0.7 });
+    tw(0.7, function (k) { S.basket.position.z = z0 + 0.75 * k; }, { ease: E('inOut') });
+    later(0.8, payArm);
+  }
+  function payArm() {
     var A = S.arm;
     A.visible = true;
     A.position.copy(ARM_OFF);
@@ -717,7 +726,7 @@
     phase = 'print';
     S.paper.visible = true;
     S.paper.position.copy(SLOT);
-    S.paper.rotation.set(0, 0, 0);
+    S.paper.rotation.set(0, PAPER_YAW, 0);
     setPaper(0.001, false);
     snd('print');
     tw(1.2, function (k) { setPaper(REC_MAX * k, false); }, {
@@ -751,7 +760,7 @@
     var end = S.contents.localToWorld(lp.clone());
     var ctrl = new V3(U.lerp(from.x, end.x, 0.4), end.y + 0.35, U.lerp(from.z, end.z, 0.5));
     var a = new V3(), b = new V3();
-    var r0 = new T.Euler(0, 0, 0), r1 = new T.Euler(-PI / 2 + 0.12, 0.25, 0.05);
+    var r0 = new T.Euler(0, PAPER_YAW, 0), r1 = new T.Euler(-PI / 2 + 0.12, 0.25, 0.05);
     tw(1.05, function (k) {
       a.lerpVectors(from, ctrl, k); b.lerpVectors(ctrl, end, k);
       P.position.lerpVectors(a, b, k);
@@ -848,9 +857,7 @@
     floor.receiveShadow = true;
     sc.add(floor);
     var wall = new T.Mesh(new T.PlaneGeometry(12, 2.6), new T.MeshStandardMaterial({ map: wallTex(), roughness: 0.85 }));
-    wall.position.set(0, -0.88 + 1.3 - 0.0, -2.3);
-    wall.material.map.repeat.set(6, 1);
-    // 壁の下 14% が幅木になるよう UV を合わせる
+    wall.position.set(0, -0.88 + 1.3, -2.3);
     sc.add(wall);
 
     /* レジ台 */
@@ -913,16 +920,16 @@
     win.add(S.glass);
     // ガラスの上のにじむ赤い光
     S.haloTex = radialTex([[0, 'rgba(255,60,40,0.9)'], [0.45, 'rgba(255,30,20,0.35)'], [1, 'rgba(255,0,0,0)']]);
-    S.halo = new T.Mesh(new T.PlaneGeometry(0.42, 0.42), new T.MeshBasicMaterial({ map: S.haloTex, transparent: true, blending: T.AdditiveBlending, depthWrite: false, toneMapped: false, opacity: 0.1 }));
+    S.halo = new T.Mesh(new T.PlaneGeometry(0.42, 0.42), new T.MeshBasicMaterial({ map: S.haloTex, transparent: true, depthWrite: false, toneMapped: false, opacity: 0.1 }));
     S.halo.rotation.x = -PI / 2; S.halo.position.y = 0.0025; S.halo.renderOrder = 5;
     S.halo.userData.noPick = true;
     win.add(S.halo);
 
     /* 赤い光の帯（品物の下から体をなめる） */
-    S.beam = new T.Mesh(new T.PlaneGeometry(1, 1).translate(0, 0.5, 0), new T.MeshBasicMaterial({ map: beamTex(), transparent: true, blending: T.AdditiveBlending, depthWrite: false, toneMapped: false, opacity: 0, side: T.DoubleSide }));
+    S.beam = new T.Mesh(new T.PlaneGeometry(1, 1).translate(0, 0.5, 0), new T.MeshBasicMaterial({ map: beamTex(), transparent: true, depthWrite: false, depthTest: false, toneMapped: false, opacity: 0, side: T.DoubleSide }));
     S.beam.renderOrder = 6; S.beam.visible = false; S.beam.userData.noPick = true;
     sc.add(S.beam);
-    S.beamLine = new T.Mesh(new T.PlaneGeometry(1, 0.012), new T.MeshBasicMaterial({ map: lineTex(), transparent: true, blending: T.AdditiveBlending, depthWrite: false, toneMapped: false, opacity: 0 }));
+    S.beamLine = new T.Mesh(new T.PlaneGeometry(1, 0.012), new T.MeshBasicMaterial({ map: lineTex(), transparent: true, depthWrite: false, toneMapped: false, opacity: 0 }));
     S.beamLine.rotation.x = -PI / 2; S.beamLine.renderOrder = 6; S.beamLine.visible = false;
     sc.add(S.beamLine);
 
@@ -972,11 +979,11 @@
     S.padGlow.rotation.x = -PI / 2; S.padGlow.position.copy(PAD); S.padGlow.position.y += 0.002;
     sc.add(S.padGlow);
     // レシートの出口（細い溝）
-    var slot = new T.Mesh(rbox(0.086, 0.007, 0.006, 2, 0.002), new T.MeshStandardMaterial({ color: 0x050607, roughness: 0.8 }));
+    var slot = new T.Mesh(rbox(0.104, 0.007, 0.006, 2, 0.002), new T.MeshStandardMaterial({ color: 0x050607, roughness: 0.8 }));
     slot.position.set(SLOT.x, SLOT.y, -0.0855);
     sc.add(slot);
-    var lip = new T.Mesh(rbox(0.096, 0.005, 0.012, 2, 0.002), dark);
-    lip.position.set(SLOT.x, SLOT.y + 0.0065, -0.083);
+    var lip = new T.Mesh(rbox(0.082, 0.005, 0.012, 2, 0.002), dark);
+    lip.position.set(SLOT.x - 0.001, SLOT.y + 0.0065, -0.083);
     sc.add(lip);
     U.shadow(base); U.shadow(post); U.shadow(head, true, false); U.shadow(lip);
     screen.castShadow = false; scrGlass.castShadow = false;
@@ -1004,7 +1011,7 @@
     S.recTex.colorSpace = T.SRGBColorSpace;
     S.recTex.anisotropy = 4;
     S.paperGeo = makePaperGeo();
-    S.paper = new T.Mesh(S.paperGeo, new T.MeshStandardMaterial({ map: S.recTex, roughness: 0.85, side: T.DoubleSide }));
+    S.paper = new T.Mesh(S.paperGeo, new T.MeshStandardMaterial({ map: S.recTex, color: 0xdcd9d2, roughness: 0.85, side: T.DoubleSide }));
     S.paper.castShadow = true; S.paper.receiveShadow = true;
     S.paper.visible = false;
     S.paperLen = 0.001;
@@ -1016,7 +1023,7 @@
     S.arm.visible = false;
     sc.add(S.arm);
     var wrist = new T.Group();
-    wrist.rotation.set(-PI / 2 + 0.25, PI / 2, 0, 'YXZ');   // 指は -X（左）へ、手の甲は上（少し手前）
+    wrist.rotation.set(-PI / 2 - 0.3, PI / 2, 0, 'YXZ');   // 指は -X（左）へ、手の甲は上。腕は右上へ上がる
     S.arm.add(wrist);
     var cardGeo = new T.ExtrudeGeometry(rrShape(0.054, 0.086, 0.0035), { depth: 0.0008, bevelEnabled: false, curveSegments: 6 });
     cardGeo.translate(0, 0, -0.0004);
@@ -1032,7 +1039,9 @@
       var holdObj = S.hand.hold || null;
       if (holdObj) {
         holdObj.add(card);
-        card.position.set(0, 0.03, 0);   // 指のあいだから先へ出る
+        // hold の向きは人さし指の節に沿う: その +Z が指先の方向、-Y が手のひら側。カードを寝かせて指先の先へ出す
+        card.rotation.x = PI / 2;
+        card.position.set(0, -0.002, 0.034);
       } else {
         wrist.add(card);
         card.position.set(0, 0.10, -0.016);
@@ -1044,6 +1053,14 @@
     }
     S.card = card;
     S.wrist = wrist;
+    // カードは手の向きによらず水平に寝かせる（面は上、長い辺は指先の方向 -X）
+    S.arm.position.set(0, 0, 0); S.arm.rotation.set(0, 0, 0);
+    S.arm.updateMatrixWorld(true);
+    if (card.parent) {
+      var want = new T.Quaternion().setFromRotationMatrix(new T.Matrix4().makeBasis(new V3(0, 0, -1), new V3(-1, 0, 0), new V3(0, 1, 0)));
+      var pq = card.parent.getWorldQuaternion(new T.Quaternion()).invert();
+      card.quaternion.copy(pq.multiply(want));
+    }
     // 腕の位置: カードの中心がパッドの真上に来るよう、手首の位置を逆算する
     S.arm.position.set(0, 0, 0); S.arm.rotation.set(0, 0, 0);
     S.arm.updateMatrixWorld(true);
@@ -1089,11 +1106,12 @@
     fx.flash = fx.boost = fx.red = fx.lamp = fx.pay = fx.flutter = 0; fx.beam = null;
     S.beam.visible = false; S.beamLine.visible = false;
     scr.mode = 'idle'; scr.dirty = true; scr.img = null;
+    S.basket.position.copy(BASKET_POS);
     S.bagRoot.position.copy(BAG_POS); S.bagRoot.rotation.set(0, 0, 0);
     S.bag.rotation.set(0, 0, 0); S.bag.position.set(0, 0, 0);
     S.paper.visible = false;
     if (S.paper.parent !== S.scene) S.scene.add(S.paper);
-    S.paper.position.copy(SLOT); S.paper.rotation.set(0, 0, 0);
+    S.paper.position.copy(SLOT); S.paper.rotation.set(0, PAPER_YAW, 0);
     setPaper(0.001, false);
     S.arm.visible = false;
     var ss = G.low ? 512 : 1024;
@@ -1129,6 +1147,9 @@
       r.root.position.copy(lp); r.root.quaternion.copy(lq);
       S.contents.add(r.root);
     }
+    // 品物の絵は最初の1回が重い（GPU 読み戻し）ので、暗転中に作っておく＝「ぴっ」の瞬間に引っかからない
+    for (i = 0; i < st.basket.length; i++) icon(st.basket[i]);
+    getHandIcon();
     var b = bagBulge(st.scanned.length);
     S.bag.scale.set(b.x, 1, b.z);
 
@@ -1145,7 +1166,7 @@
 
   function layout() {
     if (!S.camera) return;
-    G.fit(S.camera, { center: new V3(0.02, 0.12, -0.05), w: 0.66, h: 1.05, pitch: 0.9 });
+    G.fit(S.camera, { center: new V3(0.05, 0.12, -0.04), w: 0.72, h: 1.05, pitch: 1.0 });
   }
 
   /* ───────── 毎フレーム ───────── */
@@ -1161,12 +1182,12 @@
     var base = 0.55 + 0.12 * Math.sin(t * 2.3) + 0.06 * Math.sin(t * 7.1);
     S.laserA.material.opacity = Math.min(1, base + fx.flash * 0.6 + blink);
     S.laserB.material.opacity = Math.min(1, base * 0.75 + fx.flash * 0.6 + blink);
-    S.halo.material.opacity = 0.1 + 0.03 * Math.sin(t * 2.3) + fx.flash * 0.85 + blink * 0.5;
-    fx.flash = Math.max(0, fx.flash - dt * 3.2);
+    S.halo.material.opacity = Math.min(1, 0.07 + 0.02 * Math.sin(t * 2.3) + fx.flash * 0.6 + blink * 0.35);
+    fx.flash = Math.max(0, fx.flash - dt * 2.6);
     fx.boost = Math.max(0, fx.boost - dt * 0.9);
 
     // 赤い PointLight（0.15 秒）
-    if (fx.red > 0) { fx.red = Math.max(0, fx.red - dt); S.red.intensity = 0.05 * (fx.red / 0.15); }
+    if (fx.red > 0) { fx.red = Math.max(0, fx.red - dt); S.red.intensity = 0.3 * (fx.red / 0.15); }
     else S.red.intensity = 0;
 
     // 赤い光の帯
@@ -1175,11 +1196,11 @@
       bm.t += dt;
       var k = Math.min(1, bm.t / bm.dur);
       var z = bm.z + 0.09 - 0.18 * k;
-      var a = Math.sin(k * PI);
+      var a = Math.min(1, k * 6) * Math.sqrt(1 - k);
       S.beam.visible = true; S.beamLine.visible = true;
       S.beam.position.set(bm.x, 0.002, z);
       S.beam.scale.set(bm.w, bm.h, 1);
-      S.beam.material.opacity = 0.75 * a;
+      S.beam.material.opacity = 0.6 * a;
       S.beamLine.position.set(GLASS.x, 0.0028, U.clamp(z, GLASS.z - 0.1, GLASS.z + 0.1));
       S.beamLine.scale.set(0.2, 1, 1);
       S.beamLine.material.opacity = a;
@@ -1202,7 +1223,7 @@
     // レシートのひらひら
     if (S.paper.visible && (phase === 'receipt' || phase === 'print')) {
       var fl = fx.flutter + 0.08 * Math.sin(t * 1.7) * (phase === 'receipt' ? 1 : 0);
-      S.paper.rotation.set(-0.02 * Math.abs(fl), 0, 0.06 * fl);
+      S.paper.rotation.set(-0.02 * Math.abs(fl), PAPER_YAW, 0.06 * fl);
     }
   }
 
