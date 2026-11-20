@@ -541,8 +541,14 @@ export function createKitchenScene(ctx) {
   function shakerFrame(dt, c) {
     const api = shaker.userData.api;
     const riceY = riceTopWorld().y;
-    const uv = C.worldToRiceUV(seen(api.capWorld(tmpV2), riceY));
-    const over = !flags.closed.child && uv.u > -0.04 && uv.u < 1.04 && uv.v > -0.04 && uv.v < 1.04;
+    // びんの口の「見た目の位置」か、指そのものが、ごはんの上にあれば振り出す（指をごはんに置く子も、びんを重ねる子も通る）
+    let uv = C.worldToRiceUV(seen(api.capWorld(tmpV2), riceY));
+    const inR = (q, m) => q.u > -m && q.u < 1 + m && q.v > -m && q.v < 1 + m;
+    let over = !flags.closed.child && inR(uv, 0.04);
+    if (!over && !flags.closed.child) {
+      const fu = C.worldToRiceUV(c.fingerAt(riceY));
+      if (inR(fu, 0.12)) { over = true; uv = fu; }
+    }
     api.setPour(over ? 1 : 0);
     pourOn = over ? pourOn + dt : 0;
     lastSprinkleT += dt;

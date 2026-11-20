@@ -130,6 +130,7 @@ export function createHints(engine, tweens, audio, input) {
   const tmp = new THREE.Vector3(), tmp2 = new THREE.Vector3();
 
   function measure(obj) {
+    obj.updateWorldMatrix(true, true); // 親の行列が古いと輪がずれる
     box.setFromObject(obj);
     const wp = obj.getWorldPosition(new THREE.Vector3());
     if (box.isEmpty()) return { center: new THREE.Vector3(), top: new THREE.Vector3(), r: 0.03, wp };

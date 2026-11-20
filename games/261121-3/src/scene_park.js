@@ -40,6 +40,10 @@ export function createParkScene(ctx) {
   group.name = 'parkScene';
   const set = createPicnicSet(engine.renderer);
   group.add(set);
+  // 手前（カメラ側）からの暖かい照り返し。日かげ側を向く布バッグや箱の正面が、緑がかって沈むのを防ぐ（影なし）
+  const fill = new THREE.DirectionalLight(0xffeedd, 0.75);
+  fill.position.set(0.4, 1.3, 2.2);
+  group.add(fill); group.add(fill.target);
   const U = set.userData;
   const fog = new THREE.Fog(U.fogColor.clone(), U.fogNear, U.fogFar);
   const background = U.fogColor.clone();
@@ -662,6 +666,8 @@ export function createParkScene(ctx) {
     child.add(riceProxy);
 
     tote = createToteBag(); tApi = tote.userData.api;
+    // 薄い布の自己影で胴が真っ暗になるのを防ぐ（影は落とすが受けない）
+    tote.traverse((o) => { if (o.isMesh) o.receiveShadow = false; });
     tote.position.copy(TOTE_POS); tote.rotation.y = 0.35;
     tApi.setHandles(0);
     dyn.add(tote);

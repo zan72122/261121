@@ -25,6 +25,10 @@ export function createWalkScene(ctx) {
   group.name = 'walkScene';
   const set = createWalkSet(engine.renderer);
   group.add(set);
+  // 手前（カメラ側）からの暖かい照り返し。日かげ側を向く布バッグや箱の正面が、緑がかって沈むのを防ぐ（影なし）
+  const fill = new THREE.DirectionalLight(0xffeedd, 1.0);
+  fill.position.set(0.4, 1.3, 2.2);
+  group.add(fill); group.add(fill.target);
   const U = set.userData;
   const fog = new THREE.Fog(U.fogColor.clone(), U.fogNear, U.fogFar);
 
@@ -39,6 +43,8 @@ export function createWalkScene(ctx) {
   function buildBag() {
     if (tote) swing.remove(tote);
     tote = createToteBag();
+    // 薄い布の自己影で胴が真っ暗になるのを防ぐ（影は落とすが受けない）
+    tote.traverse((o) => { if (o.isMesh) o.receiveShadow = false; });
     const api = tote.userData.api;
     api.setHandles(1);
     // 持ち手を立てた形に一気に合わせる
