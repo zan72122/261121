@@ -33,6 +33,10 @@ async function init() {
   renderer.toneMappingExposure = 1.04;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Shadow casters (house, fence, wall hose, car body) are static except while the car drives
+  // out/in, so the shadow pass is re-rendered only when something actually moves.
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
   container.appendChild(renderer.domElement);
 
   const scene = new THREE.Scene();
@@ -421,6 +425,7 @@ async function init() {
       const t = Math.min(1, phaseTimer / 1.45);
       const ease = t * t * (3 - 2 * t);
       car.group.position.x = -ease * 7.5;
+      renderer.shadowMap.needsUpdate = true;
       particles.setSparkleIntensity(0, elapsed);
       if (t >= 1) {
         washRound++;
@@ -440,6 +445,7 @@ async function init() {
       const t = Math.min(1, phaseTimer / 1.45);
       const ease = 1 - Math.pow(1 - t, 3);
       car.group.position.x = (1 - ease) * 7.5;
+      renderer.shadowMap.needsUpdate = true;
       if (t >= 1) {
         car.group.position.x = 0;
         phase = 'playing';

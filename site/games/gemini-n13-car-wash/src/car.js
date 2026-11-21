@@ -17,22 +17,19 @@ export async function loadFamilyCar(washSurface, textures) {
   rawRoot.traverse((obj) => {
     if (!obj.isMesh || !obj.geometry) return;
     const matName = (obj.material && obj.material.name) || 'default';
-    let geom = obj.geometry.clone();
-    geom.applyMatrix4(obj.matrixWorld);
-    for (const key of Object.keys(geom.attributes)) {
-      if (key !== 'position' && key !== 'normal' && key !== 'uv') {
-        geom.deleteAttribute(key);
-      }
+    const src = obj.geometry;
+    // The GLB is KHR_mesh_quantization-packed (normalized int16): expand to Float32 before
+    // baking the dequantization/world matrix, otherwise values would clamp to [-1, 1].
+    let geom = new THREE.BufferGeometry();
+    for (const key of ['position', 'normal', 'uv']) {
+      if (src.attributes[key]) geom.setAttribute(key, toFloat32Attribute(src.attributes[key]));
     }
+    if (src.index) geom.setIndex(src.index.clone());
+    geom.applyMatrix4(obj.matrixWorld);
     if (!geom.attributes.normal) geom.computeVertexNormals();
     if (!geom.attributes.uv) {
       const count = geom.attributes.position.count;
       geom.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(count * 2), 2));
-    }
-    if (geom.index) {
-      const nonIdx = geom.toNonIndexed();
-      geom.dispose();
-      geom = nonIdx;
     }
     if (!buckets.has(matName)) buckets.set(matName, []);
     buckets.get(matName).push(geom);
@@ -147,9 +144,14 @@ export async function loadFamilyCar(washSurface, textures) {
   // (tires/rims/lugs already sit on our tight baked ground contact AO shadow — saves ~90k shadow tris!)
   const shadowCasters = new Set(['paint', 'black.001']);
 
-  for (const [matName, geoms] of buckets.entries()) {
+  for (const [matName, rawGeoms] of buckets.entries()) {
+    // Keep index buffers (≈3x fewer vertex-shader invocations than de-indexed geometry);
+    // only fall back to non-indexed if a bucket mixes both kinds.
+    const mixed = rawGeoms.some((g) => !g.index);
+    const geoms = mixed ? rawGeoms.map((g) => (g.index ? g.toNonIndexed() : g)) : rawGeoms;
     const merged = mergeGeometries(geoms, false);
-    geoms.forEach((g) => g.dispose());
+    rawGeoms.forEach((g) => g.dispose());
+    if (mixed) geoms.forEach((g) => g.dispose());
     if (!merged) continue;
 
     const mat = materials[matName] || materials['black.001'];
@@ -159,10 +161,15 @@ export async function loadFamilyCar(washSurface, textures) {
     mesh.receiveShadow = true;
     carGroup.add(mesh);
 
-    totalTris += merged.attributes.position.count / 3;
+    totalTris += (merged.index ? merged.index.count : merged.attributes.position.count) / 3;
 
     if (matName !== 'interior') {
-      raycastMeshes.push(mesh);
+      // Raycast against invisible spatial chunks of the same triangles: identical hits/normals,
+      // but bounding-sphere culling skips most of the ~130k triangles on every touch frame.
+      for (const proxy of buildRaycastChunks(merged, mat)) {
+        carGroup.add(proxy);
+        raycastMeshes.push(proxy);
+      }
     }
   }
 
@@ -183,4 +190,89 @@ export async function loadFamilyCar(washSurface, textures) {
     totalTris: Math.round(totalTris),
     drawCalls: buckets.size,
   };
+}
+
+/** Copies any (possibly normalized / interleaved) attribute into a plain Float32 attribute. */
+function toFloat32Attribute(attr) {
+  const n = attr.itemSize;
+  const out = new Float32Array(attr.count * n);
+  for (let i = 0; i < attr.count; i++) {
+    out[i * n] = attr.getX(i);
+    if (n > 1) out[i * n + 1] = attr.getY(i);
+    if (n > 2) out[i * n + 2] = attr.getZ(i);
+    if (n > 3) out[i * n + 3] = attr.getW(i);
+  }
+  return new THREE.BufferAttribute(out, n);
+}
+
+/**
+ * Splits a merged geometry into invisible raycast-only meshes (≈1.5k triangles each) by recursive
+ * median split on triangle centroids. Each chunk shares the position buffer and gets tight bounds,
+ * so Raycaster culls most chunks before any per-triangle test.
+ */
+function buildRaycastChunks(geometry, material, leafTris = 1536) {
+  const pos = geometry.attributes.position;
+  const posOnly = new THREE.BufferAttribute(pos.array, 3);
+  const index = geometry.index
+    ? geometry.index.array
+    : Uint32Array.from({ length: pos.count }, (_, i) => i);
+  const triCount = index.length / 3;
+  const centroids = new Float32Array(triCount * 3);
+  for (let t = 0; t < triCount; t++) {
+    for (let k = 0; k < 3; k++) {
+      const v = index[t * 3 + k];
+      centroids[t * 3] += pos.getX(v) / 3;
+      centroids[t * 3 + 1] += pos.getY(v) / 3;
+      centroids[t * 3 + 2] += pos.getZ(v) / 3;
+    }
+  }
+  const tris = Array.from({ length: triCount }, (_, i) => i);
+  const meshes = [];
+  const v3 = new THREE.Vector3();
+
+  const makeLeaf = (list) => {
+    const idx = new Uint32Array(list.length * 3);
+    const box = new THREE.Box3();
+    list.forEach((t, i) => {
+      for (let k = 0; k < 3; k++) {
+        const v = index[t * 3 + k];
+        idx[i * 3 + k] = v;
+        box.expandByPoint(v3.fromBufferAttribute(pos, v));
+      }
+    });
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', posOnly);
+    g.setIndex(new THREE.BufferAttribute(idx, 1));
+    g.boundingBox = box;
+    g.boundingSphere = new THREE.Sphere();
+    box.getBoundingSphere(g.boundingSphere);
+    const m = new THREE.Mesh(g, material);
+    m.visible = false;
+    m.name = 'raycastChunk';
+    meshes.push(m);
+  };
+
+  const split = (list) => {
+    if (list.length <= leafTris) {
+      makeLeaf(list);
+      return;
+    }
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    for (const t of list) {
+      for (let a = 0; a < 3; a++) {
+        const c = centroids[t * 3 + a];
+        if (c < min[a]) min[a] = c;
+        if (c > max[a]) max[a] = c;
+      }
+    }
+    let axis = 0;
+    for (let a = 1; a < 3; a++) if (max[a] - min[a] > max[axis] - min[axis]) axis = a;
+    list.sort((p, q) => centroids[p * 3 + axis] - centroids[q * 3 + axis]);
+    const mid = list.length >> 1;
+    split(list.slice(0, mid));
+    split(list.slice(mid));
+  };
+  split(tris);
+  return meshes;
 }

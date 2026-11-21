@@ -7,6 +7,7 @@ All external 3D models, HDRIs, PBR texture sets, and libraries are bundled local
 - **Sage Five-Door Crossover SUV** (`assets/models/car/crossover_suv.glb`)
   - Source: Innerscene 3D Parts Library — https://www.innerscene.com/tools/library/3d-parts/sage-five-door-crossover-suv-1db314ad
   - License: CC0 1.0 Universal (Public Domain Dedication)
+  - Optimized for mobile: node transforms baked, one mesh per material, KHR_mesh_quantization (int16 positions/normals), UVs kept only for tires
 - **Garden Hose Wall Mounted 01** (`assets/models/hose/garden_hose_wall_mounted_01_1k.gltf`)
   - Source: Poly Haven — https://polyhaven.com/a/garden_hose_wall_mounted_01
   - License: CC0 1.0 Universal (Public Domain)
@@ -20,7 +21,7 @@ All external 3D models, HDRIs, PBR texture sets, and libraries are bundled local
   - Source: Poly Haven — https://polyhaven.com/a/tree_lined_driveway
   - License: CC0 1.0 Universal (Public Domain)
 
-## PBR Textures (CC0 1.0 Public Domain, all ≤ 1024px)
+## PBR Textures (CC0 1.0 Public Domain, all ≤ 1024px; sponge/towel/tire/hose/shrub maps resized to 512px)
 
 - **Concrete Pavers** (`assets/textures/pavers/`)
   - Source: Poly Haven — https://polyhaven.com/a/concrete_pavers
