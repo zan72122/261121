@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta name="robots" content="noindex">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Car Wash</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #9cb8cf;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #app {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      touch-action: none;
+    }
+    /* Subtle visual-only loading veil (zero text) */
+    #veil {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle at 50% 42%, #c9dfef 0%, #8aa9c2 100%);
+      transition: opacity 0.65s ease;
+      pointer-events: none;
+      z-index: 10;
+    }
+    #veil.done {
+      opacity: 0;
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/three.module.js",
+      "three/addons/": "./vendor/three/"
+    }
+  }
+  </script>
+<script src="../../gf-playlog.js" defer></script>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="veil"></div>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
